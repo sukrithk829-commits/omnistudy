@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="mx-auto max-w-4xl">
+  <section class="surface overflow-hidden">
+    <div class="bg-gradient-to-r from-violet-700 via-indigo-700 to-indigo-600 px-6 py-8 text-white sm:px-9">
+      <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[.16em] text-violet-200">Shared AI assessment</p>
+          <h1 class="mt-2 text-3xl font-bold">{{ document.title }}</h1>
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-violet-100">Choose a focus and length, then work through one question at a time. The shared question bank is never regenerated for individual attempts.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          {% if full_bank_ready %}
+          <span class="badge h-fit bg-white/20 text-white font-semibold">{{ bank_size }} questions ready</span>
+          {% endif %}
+          {% if student_document_attempts and student_document_attempts > 0 %}
+          <form method="post" action="{{ url_for('clear_document_quiz_attempts', document_id=document.id) }}" onsubmit="return confirm('Clear your past quiz attempt scores for this note?');">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+            <button class="btn border border-amber-300 bg-amber-500/30 text-white hover:bg-amber-500/50 !py-1.5 !px-3 text-xs font-semibold">↺ Reset My History ({{ student_document_attempts }})</button>
+          </form>
+          {% endif %}
+          {% if full_bank_ready and (g.user.id == document.owner_id or g.user.role == 'admin') %}
+          <form method="post" action="{{ url_for('delete_study_pack', document_id=document.id) }}" onsubmit="return confirm('Permanently delete this entire generated quiz question bank? You can generate a fresh one anytime.');">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+            <button class="btn border border-rose-300 bg-rose-600 text-white hover:bg-rose-700 !py-1.5 !px-3 text-xs font-bold shadow-sm">🗑 Delete Quiz Bank</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="p-5 sm:p-8">
+      {% if overall_performance and overall_performance.attempts %}
+      <section class="mb-6 grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-4 sm:grid-cols-3">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-wide text-indigo-500">Your attempts</p>
+          <p class="mt-1 text-xl font-bold text-indigo-950">{{ overall_performance.attempts }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-bold uppercase tracking-wide text-indigo-500">Overall mastery</p>
+          <p class="mt-1 text-xl font-bold text-indigo-950">{{ overall_performance.average_score }}%</p>
+        </div>
+        <div>
+          <p class="text-xs font-bold uppercase tracking-wide text-indigo-500">Best score</p>
+          <p class="mt-1 text-xl font-bold text-indigo-950">{{ overall_performance.best_score }}%</p>
+        </div>
+      </section>
+      {% endif %}
+
+      {% if full_bank_ready %}
+      <form method="get" class="mb-7 rounded-2xl border border-slate-100 bg-slate-50 p-5">
+        <input type="hidden" name="seed" value="{{ next_seed }}">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p class="font-bold text-ink">Assessment setup</p>
+            <p class="mt-1 text-sm text-slate-500">Choose question focus and how many questions you want to practice.</p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="field-label">Question focus
+              <select name="difficulty" class="field-input mt-1">
+                <option value="balanced" {{ 'selected' if difficulty == 'balanced' }}>Balanced</option>
+                <option value="easy" {{ 'selected' if difficulty == 'easy' }}>Easy focus</option>
+                <option value="medium" {{ 'selected' if difficulty == 'medium' }}>Medium focus</option>
+                <option value="hard" {{ 'selected' if difficulty == 'hard' }}>Hard focus</option>
+              </select>
+            </label>
+            <label class="field-label">Number of questions
+              <select name="question_count" class="field-input mt-1">
+                {% for count in available_counts %}
+                <option value="{{ count }}" {{ 'selected' if requested_count == count }}>{{ count }} questions</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <button class="btn-secondary h-fit !py-2">Apply setup</button>
+        </div>
+      </form>
+
+      {% if result %}
+      <section class="mb-7 rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-emerald-700">{{ result.message }}</p>
+            <p class="mt-1 text-3xl font-bold text-emerald-950">{{ result.mastery }}% <span class="text-base font-semibold text-emerald-700">· {{ result.score }} of {{ result.total }} correct</span></p>
+          </div>
+          <a class="btn-primary w-fit" href="{{ url_for('quiz', document_id=document.id, difficulty=difficulty, question_count=requested_count, seed=next_seed) }}">Try another set →</a>
+        </div>
+      </section>
+
+      <section>
+        <div class="mb-4">
+          <p class="eyebrow">Answer review</p>
+          <h2 class="mt-1 text-xl font-bold text-ink">Learn from every response</h2>
+        </div>
+        <div class="space-y-5">
+          {% for question in questions %}
+          {% set question_index = loop.index0 %}
+          <article class="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+            <div class="flex gap-3">
+              <span class="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white text-sm font-bold text-indigo-600 shadow-sm">{{ loop.index }}</span>
+              <div>
+                <div class="mb-2 flex flex-wrap gap-2">
+                  <span class="badge {{ 'bg-rose-100 text-rose-700' if question.difficulty == 'Hard' else 'bg-amber-100 text-amber-700' if question.difficulty == 'Medium' else 'bg-emerald-100 text-emerald-700' }}">{{ question.difficulty }}</span>
+                  <span class="badge bg-white text-slate-500">{{ question.skill }}</span>
+                </div>
+                <p class="font-semibold leading-6 text-ink">{{ question.prompt }}</p>
+              </div>
+            </div>
+            <div class="mt-5 grid gap-2 sm:grid-cols-2">
+              {% for option in question.options %}
+              <div class="rounded-xl border px-3 py-3 text-sm {{ 'border-emerald-400 bg-emerald-50 text-emerald-900 font-semibold' if option.strip() == question.answer.strip() else 'border-red-300 bg-red-50 text-red-800 font-medium' if (result.answers and question_index < result.answers|length and option.strip() == result.answers[question_index].strip()) else 'border-slate-200 bg-white text-slate-500' }}">
+                <span class="font-bold">{{ '✓ Correct' if (option.strip() == question.answer.strip() and (not result.answers or option.strip() != result.answers[question_index].strip())) else '✓ Correct (Your answer)' if (result.answers and option.strip() == question.answer.strip() and option.strip() == result.answers[question_index].strip()) else '✗ Your answer' if (result.answers and option.strip() == result.answers[question_index].strip()) else 'Option' }}</span>
+                <span class="ml-2">{{ option }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="mt-4 rounded-xl bg-white px-4 py-3 text-sm leading-6 text-slate-700">
+              <span class="font-bold text-indigo-700">Why:</span> {{ question.explanation }}
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% else %}
+      <form method="post" id="quiz-form" class="space-y-6">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="difficulty" value="{{ difficulty }}">
+        <input type="hidden" name="question_count" value="{{ requested_count }}">
+        <input type="hidden" name="seed" value="{{ seed }}">
+
+        <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <div class="flex items-center justify-between text-sm">
+            <p class="font-bold text-ink"><span data-current-number>1</span> of {{ questions|length }}</p>
+            <p class="font-semibold text-indigo-600" data-progress-label>0% complete</p>
+          </div>
+          <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+            <div data-progress-bar class="h-full w-0 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 transition-all duration-300"></div>
+          </div>
+          <div class="mt-4 flex flex-wrap gap-2" data-question-nav>
+            {% for question in questions %}
+            <button type="button" data-go-to="{{ loop.index0 }}" class="grid h-7 w-7 place-items-center rounded-lg bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200 transition">{{ loop.index }}</button>
+            {% endfor %}
+          </div>
+        </div>
+
+        {% for question in questions %}
+        {% set question_index = loop.index0 %}
+        <article data-question-card class="rounded-2xl border border-slate-100 bg-white p-1 {{ 'hidden' if not loop.first }}">
+          <div class="rounded-xl bg-slate-50 p-5 sm:p-7">
+            <div class="flex flex-wrap items-start gap-3">
+              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-sm font-bold text-indigo-600 shadow-sm">{{ loop.index }}</span>
+              <div class="min-w-0 flex-1">
+                <div class="mb-3 flex flex-wrap gap-2">
+                  <span class="badge {{ 'bg-rose-100 text-rose-700' if question.difficulty == 'Hard' else 'bg-amber-100 text-amber-700' if question.difficulty == 'Medium' else 'bg-emerald-100 text-emerald-700' }}">{{ question.difficulty }}</span>
+                  <span class="badge bg-white text-slate-500">{{ question.skill }}</span>
+                </div>
+                <h2 class="text-lg font-bold leading-7 text-ink">{{ question.prompt }}</h2>
+              </div>
+            </div>
+            <fieldset class="mt-6 grid gap-3 sm:grid-cols-2">
+              <legend class="sr-only">Choose an answer</legend>
+              {% for option in question.options %}
+              <label data-option-card class="group flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50">
+                <input type="radio" name="question_{{ question_index }}" value="{{ option }}" class="sr-only">
+                <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-slate-300 text-xs font-bold text-slate-500 transition group-hover:border-indigo-400 group-hover:text-indigo-600">{{ 'ABCD'[loop.index0] }}</span>
+                <span>{{ option }}</span>
+              </label>
+              {% endfor %}
+            </fieldset>
+            <p data-answer-warning class="mt-4 hidden rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Choose an answer before continuing.</p>
+          </div>
+        </article>
+        {% endfor %}
+
+        <div class="flex items-center justify-between border-t border-slate-100 pt-5">
+          <button type="button" data-previous class="btn-secondary !py-2" disabled>← Back</button>
+          <div class="flex items-center gap-3">
+            <p class="hidden text-sm font-semibold text-amber-700 sm:block" data-answer-status></p>
+            <button type="button" data-next class="btn-primary !py-2">{{ 'Submit assessment →' if questions|length == 1 else 'Next question →' }}</button>
+          </div>
+        </div>
+        <noscript>
+          <button class="btn-primary w-full mt-4">Submit assessment</button>
+        </noscript>
+      </form>
+      {% endif %}
+
+      {% else %}
+      <div class="rounded-2xl bg-amber-50 px-5 py-8 text-center">
+        <p class="font-bold text-amber-900">{{ 'Preparing the question bank...' if document.processing_status in ['queued', 'processing'] else 'Question bank is ready for generation' }}</p>
+        <p class="mt-2 text-sm text-amber-800">Assessment questions are prepared once for this note and shared with all learners.</p>
+        {% if document.processing_status not in ['queued', 'processing'] %}
+        <form method="post" action="{{ url_for('generate_shared_study_pack', document_id=document.id) }}" class="mt-5">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <button class="btn-primary">Generate study pack</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+{% if full_bank_ready and not result %}
+<script>
+(() => {
+  const form = document.querySelector('#quiz-form');
+  if (!form) return;
+  const cards = [...form.querySelectorAll('[data-question-card]')];
+  const navButtons = [...form.querySelectorAll('[data-go-to]')];
+  const previous = form.querySelector('[data-previous]');
+  const next = form.querySelector('[data-next]');
+  const progressBar = form.querySelector('[data-progress-bar]');
+  const currentNumber = form.querySelector('[data-current-number]');
+  const progressLabel = form.querySelector('[data-progress-label]');
+  const answerStatus = form.querySelector('[data-answer-status]');
+  let current = 0;
+
+  const refreshChoices = () => {
+    cards.forEach((card) => card.querySelectorAll('[data-option-card]').forEach((option) => {
+      const input = option.querySelector('input');
+      const selected = input ? input.checked : false;
+      option.classList.toggle('border-indigo-500', selected);
+      option.classList.toggle('bg-indigo-50', selected);
+      option.classList.toggle('text-indigo-950', selected);
+      const span = option.querySelector('span');
+      if (span) {
+        span.classList.toggle('border-indigo-500', selected);
+        span.classList.toggle('bg-indigo-600', selected);
+        span.classList.toggle('text-white', selected);
+      }
+    }));
+  };
+
+  const answeredCount = () => cards.filter((card) => card.querySelector('input:checked')).length;
+
+  const updateIndicators = () => {
+    const answered = answeredCount();
+    const complete = cards.length > 0 ? Math.round((answered / cards.length) * 100) : 0;
+    if (progressBar) progressBar.style.width = `${complete}%`;
+    if (progressLabel) progressLabel.textContent = `${complete}% complete`;
+    if (currentNumber) currentNumber.textContent = current + 1;
+    if (answerStatus) answerStatus.textContent = `${answered} of ${cards.length} answered`;
+
+    navButtons.forEach((button, buttonIndex) => {
+      const active = buttonIndex === current;
+      const isAnswered = Boolean(cards[buttonIndex] && cards[buttonIndex].querySelector('input:checked'));
+      button.className = `grid h-7 w-7 place-items-center rounded-lg text-xs font-bold transition ${
+        active
+          ? 'bg-indigo-600 text-white ring-2 ring-indigo-200'
+          : isAnswered
+          ? 'bg-emerald-100 text-emerald-700'
+          : 'bg-white text-slate-500 ring-1 ring-slate-200'
+      }`;
+    });
+  };
+
+  const show = (index) => {
+    current = Math.max(0, Math.min(index, cards.length - 1));
+    cards.forEach((card, cardIndex) => card.classList.toggle('hidden', cardIndex !== current));
+    if (previous) {
+      previous.disabled = current === 0;
+      previous.classList.toggle('opacity-40', current === 0);
+    }
+    if (next) {
+      next.textContent = current === cards.length - 1 ? 'Submit assessment →' : 'Next question →';
+    }
+    if (cards[current]) {
+      const warning = cards[current].querySelector('[data-answer-warning]');
+      if (warning) warning.classList.add('hidden');
+    }
+    updateIndicators();
+  };
+
+  form.addEventListener('change', () => {
+    refreshChoices();
+    updateIndicators();
+    if (cards[current]) {
+      const warning = cards[current].querySelector('[data-answer-warning]');
+      if (warning && cards[current].querySelector('input:checked')) {
+        warning.classList.add('hidden');
+      }
+    }
+  });
+
+  if (next) {
+    next.addEventListener('click', () => {
+      const currentAnswered = cards[current] && cards[current].querySelector('input:checked');
+      if (!currentAnswered) {
+        const warning = cards[current].querySelector('[data-answer-warning]');
+        if (warning) warning.classList.remove('hidden');
+        return;
+      }
+      if (current === cards.length - 1) {
+        const firstUnanswered = cards.findIndex((card) => !card.querySelector('input:checked'));
+        if (firstUnanswered !== -1) {
+          show(firstUnanswered);
+          const warning = cards[firstUnanswered].querySelector('[data-answer-warning]');
+          if (warning) warning.classList.remove('hidden');
+          return;
+        }
+        form.submit();
+      } else {
+        show(current + 1);
+      }
+    });
+  }
+
+  if (previous) {
+    previous.addEventListener('click', () => show(current - 1));
+  }
+
+  navButtons.forEach((button) => {
+    button.addEventListener('click', () => show(Number(button.dataset.goTo)));
+  });
+
+  refreshChoices();
+  show(0);
+})();
+</script>
+{% endif %}
+{% endblock %}

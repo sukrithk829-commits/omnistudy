@@ -1,0 +1,467 @@
+{% extends 'base.html' %}
+{% block title %}Executive Teaching Report · {{ department }} · OmniStudy{% endblock %}
+
+{% block content %}
+<style>
+@media print {
+  header, .print-hide {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .page-shell {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .report-container {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .report-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .page-break {
+    page-break-before: always;
+    break-before: page;
+  }
+}
+</style>
+
+<div class="mx-auto max-w-5xl space-y-6 report-container">
+
+  <!-- Interactive Action Bar (Hidden on Print / PDF export) -->
+  <div class="print-hide flex flex-col gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-violet-50 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('staff_analytics') }}" class="btn-secondary !py-1.5 !px-3 text-xs font-semibold">
+        ← Back to Analytics
+      </a>
+      <span class="text-xs text-slate-400">|</span>
+      <span class="inline-flex items-center gap-1 text-xs font-bold text-indigo-700">
+        <span class="h-2 w-2 rounded-full bg-emerald-500"></span> Live Teaching Intelligence Dossier
+      </span>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <button onclick="window.print()" class="btn-primary !py-2 !px-4 text-xs font-bold shadow-md">
+        <span>🖨️</span> Print / Save as PDF
+      </button>
+      <a href="{{ url_for('staff_report_download') }}" class="btn-secondary !py-2 !px-3.5 text-xs font-bold" title="Download standalone HTML report file">
+        <span>📥</span> Download HTML
+      </a>
+      <div class="relative inline-block text-left" id="csvDropdownContainer">
+        <button type="button" onclick="document.getElementById('csvMenu').classList.toggle('hidden')" class="btn-secondary !py-2 !px-3.5 text-xs font-bold">
+          <span>📊</span> Export Records ▾
+        </button>
+        <div id="csvMenu" class="hidden absolute right-0 z-50 mt-1 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+          <div class="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-indigo-600">Styled Excel Workbooks (.xlsx)</div>
+          <a href="{{ url_for('export_staff_excel') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100/70">
+            <span>📑</span> Master Teaching Dossier (.xlsx)
+          </a>
+          <a href="{{ url_for('export_staff_excel', report_type='gradebook') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-700">
+            <span>📊</span> Student Gradebook (.xlsx)
+          </a>
+          <a href="{{ url_for('export_staff_excel', report_type='materials') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-700">
+            <span>📊</span> Materials Audit (.xlsx)
+          </a>
+          <a href="{{ url_for('export_staff_excel', report_type='attempts') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-700">
+            <span>📊</span> Attempts Ledger (.xlsx)
+          </a>
+          <div class="my-1.5 border-t border-slate-100"></div>
+          <div class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Plain CSV Raw Exports</div>
+          <a href="{{ url_for('export_staff_roster', type='summary') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+            <span>📥</span> Gradebook (.csv)
+          </a>
+          <a href="{{ url_for('export_staff_roster', type='materials') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+            <span>📥</span> Material Audit (.csv)
+          </a>
+          <a href="{{ url_for('export_staff_roster', type='attempts') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+            <span>📥</span> Attempts Ledger (.csv)
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formal Institutional Report Header -->
+  <header class="report-section rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-slate-200 pb-6">
+      <div class="flex items-center gap-4">
+        <div class="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-800 text-2xl font-black text-white shadow-md">
+          Ω
+        </div>
+        <div>
+          <p class="text-xs font-extrabold uppercase tracking-[.18em] text-indigo-600">OmniStudy Academic Intelligence Hub</p>
+          <h1 class="text-2xl font-black text-slate-900 sm:text-3xl">Executive Teaching Assessment Report</h1>
+          <p class="text-xs text-slate-500 mt-0.5">Faculty Pedagogical Outcomes & Student Mastery Audit</p>
+        </div>
+      </div>
+      <div class="text-left sm:text-right text-xs text-slate-500 space-y-0.5">
+        <p><strong class="text-slate-700">Doc ID:</strong> OMNI-RPT-{{ g.user.id }}-{{ generation_timestamp }}</p>
+        <p><strong class="text-slate-700">Generated:</strong> {{ generation_date }}</p>
+        <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 border border-indigo-200 mt-1">
+          Accreditation Verified
+        </span>
+      </div>
+    </div>
+
+    <!-- Metadata Strip -->
+    <div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4 text-xs">
+      <div class="rounded-xl bg-slate-50 p-3 border border-slate-100">
+        <span class="text-slate-400 block uppercase font-bold text-[10px]">Instructor / Faculty</span>
+        <span class="text-slate-800 font-bold text-sm truncate block mt-0.5">{{ faculty_name }}</span>
+      </div>
+      <div class="rounded-xl bg-slate-50 p-3 border border-slate-100">
+        <span class="text-slate-400 block uppercase font-bold text-[10px]">Department</span>
+        <span class="text-slate-800 font-bold text-sm block mt-0.5">{{ department }}</span>
+      </div>
+      <div class="rounded-xl bg-slate-50 p-3 border border-slate-100">
+        <span class="text-slate-400 block uppercase font-bold text-[10px]">Active Materials</span>
+        <span class="text-slate-800 font-bold text-sm block mt-0.5">{{ staff_notes|length }} Lecture Notes</span>
+      </div>
+      <div class="rounded-xl bg-slate-50 p-3 border border-slate-100">
+        <span class="text-slate-400 block uppercase font-bold text-[10px]">Cohort Size</span>
+        <span class="text-slate-800 font-bold text-sm block mt-0.5">{{ overview.learners }} Assessed Students</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Section 1: Executive KPI Scorecards -->
+  <section class="report-section grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <article class="rounded-2xl border border-indigo-100 bg-white p-5 shadow-xs">
+      <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Attempts</p>
+      <p class="mt-2 text-3xl font-black text-indigo-600">{{ overview.attempts }}</p>
+      <p class="text-[11px] text-slate-400 mt-1">Formal student assessments</p>
+    </article>
+
+    <article class="rounded-2xl border border-violet-100 bg-white p-5 shadow-xs">
+      <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Unique Learners</p>
+      <p class="mt-2 text-3xl font-black text-violet-600">{{ overview.learners }}</p>
+      <p class="text-[11px] text-slate-400 mt-1">Active verified students</p>
+    </article>
+
+    <article class="rounded-2xl border border-teal-100 bg-white p-5 shadow-xs">
+      <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Readership Views</p>
+      <p class="mt-2 text-3xl font-black text-teal-600">{{ total_views }}</p>
+      <p class="text-[11px] text-slate-400 mt-1">Study note engagements</p>
+    </article>
+
+    <article class="rounded-2xl border border-emerald-100 bg-white p-5 shadow-xs">
+      <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cohort Mastery Avg</p>
+      <p class="mt-2 text-3xl font-black {{ 'text-emerald-600' if (overview.average_score or 0) >= 75 else ('text-amber-600' if (overview.average_score or 0) >= 60 else 'text-rose-600') }}">
+        {{ overview.average_score if overview.average_score is not none else '—' }}{% if overview.average_score is not none %}%{% endif %}
+      </p>
+      <p class="text-[11px] text-slate-400 mt-1">Weighted assessment mean</p>
+    </article>
+  </section>
+
+  <!-- Section 2: Cohort Grade Distribution -->
+  <section class="report-section rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-2">
+      <div>
+        <h2 class="text-base font-extrabold text-slate-900">Cohort Mastery & Grade Distribution</h2>
+        <p class="text-xs text-slate-500">Cumulative scoring distribution across all {{ overview.attempts }} quiz attempts.</p>
+      </div>
+      <span class="text-xs font-bold text-slate-400">{{ staff_distribution.total }} Scored Submissions</span>
+    </div>
+
+    <div class="mt-5 space-y-3">
+      <!-- Grade A -->
+      <div>
+        <div class="flex justify-between text-xs font-bold mb-1">
+          <span class="text-emerald-700">Grade A · Distinction (85% - 100%)</span>
+          <span class="text-slate-600">{{ staff_distribution.A }} attempts ({{ (staff_distribution.A * 100 / staff_distribution.total)|round(1) if staff_distribution.total > 0 else 0 }}%)</span>
+        </div>
+        <div class="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div class="h-full bg-emerald-500 rounded-full" style="width: {{ (staff_distribution.A * 100 / staff_distribution.total) if staff_distribution.total > 0 else 0 }}%"></div>
+        </div>
+      </div>
+
+      <!-- Grade B -->
+      <div>
+        <div class="flex justify-between text-xs font-bold mb-1">
+          <span class="text-indigo-700">Grade B · Proficient (70% - 84%)</span>
+          <span class="text-slate-600">{{ staff_distribution.B }} attempts ({{ (staff_distribution.B * 100 / staff_distribution.total)|round(1) if staff_distribution.total > 0 else 0 }}%)</span>
+        </div>
+        <div class="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div class="h-full bg-indigo-500 rounded-full" style="width: {{ (staff_distribution.B * 100 / staff_distribution.total) if staff_distribution.total > 0 else 0 }}%"></div>
+        </div>
+      </div>
+
+      <!-- Grade C -->
+      <div>
+        <div class="flex justify-between text-xs font-bold mb-1">
+          <span class="text-amber-700">Grade C · Developing (50% - 69%)</span>
+          <span class="text-slate-600">{{ staff_distribution.C }} attempts ({{ (staff_distribution.C * 100 / staff_distribution.total)|round(1) if staff_distribution.total > 0 else 0 }}%)</span>
+        </div>
+        <div class="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div class="h-full bg-amber-500 rounded-full" style="width: {{ (staff_distribution.C * 100 / staff_distribution.total) if staff_distribution.total > 0 else 0 }}%"></div>
+        </div>
+      </div>
+
+      <!-- Grade D -->
+      <div>
+        <div class="flex justify-between text-xs font-bold mb-1">
+          <span class="text-rose-700">Grade D · Needs Remediation (< 50%)</span>
+          <span class="text-slate-600">{{ staff_distribution.D }} attempts ({{ (staff_distribution.D * 100 / staff_distribution.total)|round(1) if staff_distribution.total > 0 else 0 }}%)</span>
+        </div>
+        <div class="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div class="h-full bg-rose-500 rounded-full" style="width: {{ (staff_distribution.D * 100 / staff_distribution.total) if staff_distribution.total > 0 else 0 }}%"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Priority Academic Interventions -->
+  {% if at_risk_learners or interventions %}
+  <section class="report-section grid gap-4 sm:grid-cols-2">
+    <!-- At-Risk Students -->
+    <div class="rounded-2xl border border-rose-200 bg-rose-50/50 p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="grid h-6 w-6 place-items-center rounded-full bg-rose-600 text-xs font-bold text-white">!</span>
+        <h3 class="text-sm font-extrabold text-rose-950">Learners Requiring Remedial Attention ({{ at_risk_learners|length }})</h3>
+      </div>
+      {% if at_risk_learners %}
+      <ul class="divide-y divide-rose-100 text-xs">
+        {% for student in at_risk_learners %}
+        <li class="py-2 flex items-center justify-between">
+          <div>
+            <span class="font-bold text-rose-900">{{ student.name }}</span>
+            <span class="text-rose-700 block text-[11px]">{{ student.email }} · Sem {{ student.semester }}</span>
+          </div>
+          <span class="badge bg-rose-100 text-rose-800 font-extrabold border border-rose-200">
+            {{ student.avg_score }}% Avg ({{ student.total_attempts }} attempts)
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-xs text-rose-700">All assessed learners maintain acceptable mastery above 50%.</p>
+      {% endif %}
+    </div>
+
+    <!-- Flagged Materials -->
+    <div class="rounded-2xl border border-amber-200 bg-amber-50/50 p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="grid h-6 w-6 place-items-center rounded-full bg-amber-600 text-xs font-bold text-white">⚠</span>
+        <h3 class="text-sm font-extrabold text-amber-950">Curriculum Materials Flagged for Review ({{ interventions|length }})</h3>
+      </div>
+      {% if interventions %}
+      <ul class="divide-y divide-amber-100 text-xs">
+        {% for note in interventions %}
+        <li class="py-2 flex items-center justify-between">
+          <div>
+            <span class="font-bold text-amber-900">{{ note.title }}</span>
+            <span class="text-amber-700 block text-[11px]">{{ note.subject }}</span>
+          </div>
+          <span class="badge bg-amber-100 text-amber-800 font-extrabold border border-amber-200">
+            {{ note.avg_mastery }}% Cohort Mean
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-xs text-amber-700">All materials show strong cohort comprehension exceeding 75%.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Section 4: Course Materials Assessment Outcomes Table -->
+  <section class="report-section rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-2 mb-4">
+      <div>
+        <h2 class="text-base font-extrabold text-slate-900">Curriculum Material Assessment Outcomes</h2>
+        <p class="text-xs text-slate-500">Readership engagement and quiz mastery per lecture note.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="{{ url_for('export_staff_excel', report_type='materials') }}" class="print-hide text-xs font-bold text-indigo-600 hover:underline">
+          📊 Export Materials Excel (.xlsx)
+        </a>
+        <span class="text-slate-300 print-hide">|</span>
+        <a href="{{ url_for('export_staff_roster', type='materials') }}" class="print-hide text-xs font-medium text-slate-500 hover:underline">
+          📥 CSV
+        </a>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-500 font-bold border-y border-slate-200 uppercase text-[10px]">
+          <tr>
+            <th class="py-2.5 px-3">Material Title</th>
+            <th class="py-2.5 px-3">Subject</th>
+            <th class="py-2.5 px-3 text-center">Views</th>
+            <th class="py-2.5 px-3 text-center">Learners</th>
+            <th class="py-2.5 px-3 text-center">Attempts</th>
+            <th class="py-2.5 px-3 text-center">Avg Mastery</th>
+            <th class="py-2.5 px-3 text-center">Health Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for note in staff_notes %}
+          <tr>
+            <td class="py-3 px-3 font-bold text-slate-900">{{ note.title }}</td>
+            <td class="py-3 px-3 text-slate-600">{{ note.subject }}</td>
+            <td class="py-3 px-3 text-center font-semibold text-slate-700">{{ note.views_count }}</td>
+            <td class="py-3 px-3 text-center font-semibold text-slate-700">{{ note.unique_students_count }}</td>
+            <td class="py-3 px-3 text-center font-semibold text-slate-700">{{ note.quiz_attempts_count }}</td>
+            <td class="py-3 px-3 text-center font-bold">
+              {% if note.avg_mastery is not none %}
+              <span class="inline-block px-2 py-0.5 rounded text-[11px] {{ 'bg-emerald-100 text-emerald-800' if note.avg_mastery >= 75 else ('bg-amber-100 text-amber-800' if note.avg_mastery >= 60 else 'bg-rose-100 text-rose-800') }}">
+                {{ note.avg_mastery }}%
+              </span>
+              {% else %}
+              <span class="text-slate-400">—</span>
+              {% endif %}
+            </td>
+            <td class="py-3 px-3 text-center">
+              {% if note.avg_mastery is none %}
+              <span class="text-slate-400 text-[11px]">Unattempted</span>
+              {% elif note.avg_mastery >= 85 %}
+              <span class="text-emerald-700 font-bold text-[11px]">Exemplary</span>
+              {% elif note.avg_mastery >= 70 %}
+              <span class="text-indigo-700 font-bold text-[11px]">Proficient</span>
+              {% else %}
+              <span class="text-rose-700 font-bold text-[11px]">Review Needed</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="py-8 text-center text-slate-400">No published lecture notes found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Section 5: Student Performance Gradebook Ledger -->
+  <section class="report-section rounded-3xl border border-slate-200 bg-white p-6 shadow-xs page-break">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-2 mb-4">
+      <div>
+        <h2 class="text-base font-extrabold text-slate-900">Student Competency & Assessment Gradebook</h2>
+        <p class="text-xs text-slate-500">Official student assessment ledger ranked by average conceptual mastery.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="{{ url_for('export_staff_excel', report_type='gradebook') }}" class="print-hide text-xs font-bold text-indigo-600 hover:underline">
+          📊 Export Gradebook Excel (.xlsx)
+        </a>
+        <span class="text-slate-300 print-hide">|</span>
+        <a href="{{ url_for('export_staff_roster', type='summary') }}" class="print-hide text-xs font-medium text-slate-500 hover:underline">
+          📥 CSV
+        </a>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-500 font-bold border-y border-slate-200 uppercase text-[10px]">
+          <tr>
+            <th class="py-2.5 px-3">Student Name & Email</th>
+            <th class="py-2.5 px-3 text-center">Sem</th>
+            <th class="py-2.5 px-3 text-center">Attempts</th>
+            <th class="py-2.5 px-3 text-center">Average Mastery</th>
+            <th class="py-2.5 px-3 text-center">Best Score</th>
+            <th class="py-2.5 px-3 text-center">Standing</th>
+            <th class="py-2.5 px-3 text-right">Last Attempt</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for learner in staff_learners %}
+          <tr>
+            <td class="py-3 px-3">
+              <span class="font-bold text-slate-900 block">{{ learner.name }}</span>
+              <span class="text-[11px] text-slate-400">{{ learner.email }}</span>
+            </td>
+            <td class="py-3 px-3 text-center text-slate-600 font-medium">{{ learner.semester }}</td>
+            <td class="py-3 px-3 text-center font-semibold text-slate-700">{{ learner.total_attempts }}</td>
+            <td class="py-3 px-3 text-center font-bold">
+              <span class="inline-block px-2 py-0.5 rounded text-[11px] {{ 'bg-emerald-100 text-emerald-800' if learner.avg_score >= 80 else ('bg-amber-100 text-amber-800' if learner.avg_score >= 60 else 'bg-rose-100 text-rose-800') }}">
+                {{ learner.avg_score }}%
+              </span>
+            </td>
+            <td class="py-3 px-3 text-center font-bold text-slate-800">{{ learner.max_score }}%</td>
+            <td class="py-3 px-3 text-center">
+              {% if learner.avg_score >= 85 %}
+              <span class="badge bg-emerald-50 text-emerald-700 font-bold text-[10px]">Distinction</span>
+              {% elif learner.avg_score >= 70 %}
+              <span class="badge bg-indigo-50 text-indigo-700 font-bold text-[10px]">Proficient</span>
+              {% elif learner.avg_score >= 50 %}
+              <span class="badge bg-amber-50 text-amber-700 font-bold text-[10px]">Developing</span>
+              {% else %}
+              <span class="badge bg-rose-50 text-rose-700 font-bold text-[10px]">Remediation</span>
+              {% endif %}
+            </td>
+            <td class="py-3 px-3 text-right text-slate-500 text-[11px] whitespace-nowrap">
+              {{ learner.last_active[:16].replace('T', ' ') if learner.last_active else '—' }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="py-8 text-center text-slate-400">No student assessment records logged yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Section 6: Official Faculty Certification & Sign-off Block -->
+  <section class="report-section rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
+    <div class="border-b border-slate-100 pb-3 mb-5">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Official Pedagogical Certification & Accreditation Compliance</h3>
+      <p class="text-[11px] text-slate-400 mt-0.5">
+        This document represents an authenticated institutional record of continuous internal assessment and student outcome achievement aligned with OBE (Outcome-Based Education) criteria.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 pt-4">
+      <!-- Course Instructor Signature -->
+      <div class="space-y-4">
+        <p class="text-xs font-bold text-slate-700 uppercase tracking-wide">Course Instructor / Faculty in Charge</p>
+        <div class="h-16 border-b border-dashed border-slate-400 flex items-end pb-1">
+          <span class="text-xs italic text-slate-400 font-serif">Signature / Digital Verification Token: {{ faculty_name }}</span>
+        </div>
+        <div class="flex justify-between text-xs text-slate-500">
+          <span>Name: <strong>{{ faculty_name }}</strong></span>
+          <span>Date: <strong>{{ generation_date[:10] }}</strong></span>
+        </div>
+      </div>
+
+      <!-- Head of Department Signature -->
+      <div class="space-y-4">
+        <p class="text-xs font-bold text-slate-700 uppercase tracking-wide">Head of Department / Academic Dean</p>
+        <div class="h-16 border-b border-dashed border-slate-400 flex items-end pb-1">
+          <span class="text-xs italic text-slate-400 font-serif">Signature / Department Seal</span>
+        </div>
+        <div class="flex justify-between text-xs text-slate-500">
+          <span>Department: <strong>{{ department }}</strong></span>
+          <span>Verification: <strong>OmniStudy Ledger</strong></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// Click outside to close dropdown
+document.addEventListener('click', function(e) {
+  const container = document.getElementById('csvDropdownContainer');
+  const menu = document.getElementById('csvMenu');
+  if (container && menu && !container.contains(e.target)) {
+    menu.classList.add('hidden');
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,416 @@
+{% extends 'base.html' %}
+{% block title %}Flashcards · {{ document.title }} · OmniStudy{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-4xl mx-auto" id="flashcards-root">
+  <!-- Navigation Header -->
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-600">
+        <a href="{{ url_for('document_detail', document_id=document.id) }}" class="hover:underline flex items-center gap-1">
+          <span>← Back to Note</span>
+        </a>
+        <span>·</span>
+        <span>Spaced Repetition (SRS) Studio</span>
+      </div>
+      <h1 class="mt-1 text-2xl sm:text-3xl font-extrabold text-ink flex items-center gap-2">
+        <span>🃏 Smart 3D Flashcards</span>
+        <span class="badge bg-indigo-100 text-indigo-700 text-xs">{{ cards|length }} Cards</span>
+      </h1>
+      <p class="text-xs text-slate-500 mt-1">{{ document.title }} · {{ document.subject }}</p>
+    </div>
+
+    <!-- Mastery & Reset Bar -->
+    <div class="flex items-center gap-3">
+      <div class="text-right">
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Mastery Level</p>
+        <p class="text-lg font-black text-indigo-600" id="mastery-pct-display">{{ mastery_pct }}%</p>
+      </div>
+      <form method="post" action="{{ url_for('flashcards_reset', document_id=document.id) }}" onsubmit="return confirm('Reset all spaced repetition progress for this deck?');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs !py-1.5 !px-3 shadow-xs" title="Reset deck memory boxes">
+          ↺ Reset
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Leitner Box Filter Tabs -->
+  <div class="flex flex-wrap items-center gap-1.5 rounded-2xl bg-slate-100/80 p-1.5 border border-slate-200/70 text-xs font-semibold">
+    <button type="button" class="box-filter-btn rounded-xl px-3 py-1.5 bg-white text-indigo-700 shadow-xs font-bold transition" data-box="all">
+      All Cards ({{ cards|length }})
+    </button>
+    <button type="button" class="box-filter-btn rounded-xl px-3 py-1.5 text-slate-600 hover:bg-white/60 transition" data-box="1">
+      Box 1: Learning ({{ box_counts[1] }})
+    </button>
+    <button type="button" class="box-filter-btn rounded-xl px-3 py-1.5 text-slate-600 hover:bg-white/60 transition" data-box="2">
+      Box 2: Review ({{ box_counts[2] }})
+    </button>
+    <button type="button" class="box-filter-btn rounded-xl px-3 py-1.5 text-slate-600 hover:bg-white/60 transition" data-box="3">
+      Box 3+: Mastered ({{ box_counts[3] + box_counts[4] + box_counts[5] }})
+    </button>
+  </div>
+
+  <!-- Card Progress Bar -->
+  <div>
+    <div class="flex items-center justify-between text-xs font-bold text-slate-500 mb-1.5">
+      <span id="card-counter-text">Card 1 of {{ cards|length }}</span>
+      <span class="flex items-center gap-1 text-indigo-600">
+        <span>⚡ Keyboard:</span>
+        <kbd class="px-1.5 py-0.5 rounded bg-slate-200 text-[10px]">Space</kbd> Flip
+        <kbd class="px-1.5 py-0.5 rounded bg-slate-200 text-[10px]">1-4</kbd> Rate
+      </span>
+    </div>
+    <div class="h-2 w-full rounded-full bg-slate-100 overflow-hidden border border-slate-200/50">
+      <div id="deck-progress-bar" class="h-full bg-gradient-to-r from-indigo-500 to-violet-600 transition-all duration-300" style="width: 7%;"></div>
+    </div>
+  </div>
+
+  <!-- 3D Flip Card Container -->
+  {% if cards %}
+  <div class="relative w-full py-4 perspective-1000">
+    <div 
+      id="flashcard-element" 
+      class="flashcard-3d relative w-full min-h-[340px] sm:min-h-[380px] cursor-pointer select-none transition-transform duration-500 transform-style-3d shadow-xl rounded-3xl"
+      role="button"
+      tabindex="0"
+      aria-label="Flashcard. Click to flip."
+    >
+      <!-- FRONT SIDE OF CARD -->
+      <div class="card-face card-front absolute inset-0 rounded-3xl border-2 border-indigo-100 bg-gradient-to-br from-white via-indigo-50/30 to-indigo-50/70 p-7 sm:p-10 flex flex-col justify-between backface-hidden shadow-card">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="grid h-7 w-7 place-items-center rounded-lg bg-indigo-600 text-white font-bold text-xs shadow-sm">Q</span>
+            <span id="card-category-badge" class="badge bg-indigo-100 text-indigo-800 text-[11px] font-bold">
+              {{ cards[0].category }}
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="card-box-badge" class="badge bg-slate-100 text-slate-600 text-[11px] font-semibold">
+              Leitner Box {{ cards[0].box }}
+            </span>
+            <button type="button" id="btn-audio-front" class="h-8 w-8 rounded-full bg-white border border-slate-200 grid place-items-center text-slate-600 hover:text-indigo-600 hover:border-indigo-300 transition" title="Speak prompt">
+              🔊
+            </button>
+          </div>
+        </div>
+
+        <div class="my-auto py-6 text-center">
+          <h2 id="card-front-text" class="text-xl sm:text-2xl lg:text-3xl font-extrabold text-indigo-950 leading-snug">
+            {{ cards[0].front }}
+          </h2>
+          <p id="card-hint-text" class="mt-4 text-xs text-indigo-400 italic hidden">
+            Hint: {{ cards[0].hint }}
+          </p>
+        </div>
+
+        <div class="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-indigo-100/60">
+          <button type="button" id="btn-toggle-hint" class="text-indigo-600 font-semibold hover:underline">
+            💡 Show Hint
+          </button>
+          <span class="flex items-center gap-1">
+            <span>Click or press Space to reveal answer</span> ↻
+          </span>
+        </div>
+      </div>
+
+      <!-- BACK SIDE OF CARD -->
+      <div class="card-face card-back absolute inset-0 rounded-3xl border-2 border-violet-200 bg-gradient-to-br from-white via-violet-50/40 to-violet-100/60 p-7 sm:p-10 flex flex-col justify-between backface-hidden rotate-y-180 shadow-card">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="grid h-7 w-7 place-items-center rounded-lg bg-emerald-600 text-white font-bold text-xs shadow-sm">A</span>
+            <span class="badge bg-emerald-100 text-emerald-800 text-[11px] font-bold">Answer / Explanation</span>
+          </div>
+          <button type="button" id="btn-audio-back" class="h-8 w-8 rounded-full bg-white border border-slate-200 grid place-items-center text-slate-600 hover:text-emerald-600 hover:border-emerald-300 transition" title="Speak answer">
+            🔊
+          </button>
+        </div>
+
+        <div class="my-auto py-6 text-center">
+          <p id="card-back-text" class="text-base sm:text-xl font-bold text-slate-800 leading-relaxed max-w-2xl mx-auto">
+            {{ cards[0].back }}
+          </p>
+        </div>
+
+        <div class="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-violet-100/60">
+          <span class="text-emerald-700 font-semibold">Self-Assessment Rate:</span>
+          <span>Click to flip back</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leitner SRS Confidence Rating Controls -->
+  <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-card">
+    <p class="text-center text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+      How well did you recall this card?
+    </p>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      <button 
+        type="button" 
+        class="srs-rate-btn rounded-2xl border-2 border-rose-200 bg-rose-50/70 p-3 text-center transition hover:bg-rose-100 hover:border-rose-400 focus:ring-4 focus:ring-rose-100"
+        data-rating="again"
+      >
+        <span class="block text-lg">🔴</span>
+        <span class="block font-black text-rose-800 text-sm mt-0.5">Again</span>
+        <span class="block text-[10px] text-rose-600 font-semibold">Box 1 (Key 1)</span>
+      </button>
+
+      <button 
+        type="button" 
+        class="srs-rate-btn rounded-2xl border-2 border-amber-200 bg-amber-50/70 p-3 text-center transition hover:bg-amber-100 hover:border-amber-400 focus:ring-4 focus:ring-amber-100"
+        data-rating="hard"
+      >
+        <span class="block text-lg">🟠</span>
+        <span class="block font-black text-amber-800 text-sm mt-0.5">Hard</span>
+        <span class="block text-[10px] text-amber-600 font-semibold">Repeat (Key 2)</span>
+      </button>
+
+      <button 
+        type="button" 
+        class="srs-rate-btn rounded-2xl border-2 border-emerald-200 bg-emerald-50/70 p-3 text-center transition hover:bg-emerald-100 hover:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+        data-rating="good"
+      >
+        <span class="block text-lg">🟢</span>
+        <span class="block font-black text-emerald-800 text-sm mt-0.5">Good</span>
+        <span class="block text-[10px] text-emerald-600 font-semibold">+1 Box (Key 3)</span>
+      </button>
+
+      <button 
+        type="button" 
+        class="srs-rate-btn rounded-2xl border-2 border-indigo-200 bg-indigo-50/70 p-3 text-center transition hover:bg-indigo-100 hover:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+        data-rating="easy"
+      >
+        <span class="block text-lg">🔵</span>
+        <span class="block font-black text-indigo-800 text-sm mt-0.5">Easy</span>
+        <span class="block text-[10px] text-indigo-600 font-semibold">+2 Boxes (Key 4)</span>
+      </button>
+    </div>
+
+    <!-- Navigation Arrows -->
+    <div class="mt-4 flex items-center justify-between pt-3 border-t border-slate-100 text-xs font-bold text-slate-600">
+      <button type="button" id="btn-prev-card" class="btn-soft !py-1.5 !px-3 hover:bg-slate-100">
+        ← Previous Card
+      </button>
+      <button type="button" id="btn-shuffle-cards" class="btn-soft !py-1.5 !px-3 hover:bg-slate-100">
+        🔀 Shuffle Deck
+      </button>
+      <button type="button" id="btn-next-card" class="btn-soft !py-1.5 !px-3 hover:bg-slate-100">
+        Next Card →
+      </button>
+    </div>
+  </div>
+  {% else %}
+  <div class="panel text-center py-12">
+    <span class="text-4xl">🃏</span>
+    <h3 class="text-lg font-bold text-ink mt-3">No Flashcards Available</h3>
+    <p class="text-xs text-slate-500 mt-1">Study pack needs to be processed to generate flashcards.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 3D CSS Styles -->
+<style>
+  .perspective-1000 { perspective: 1000px; }
+  .transform-style-3d { transform-style: preserve-3d; }
+  .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .rotate-y-180 { transform: rotateY(180deg); }
+  .flipped { transform: rotateY(180deg); }
+</style>
+
+<!-- Flashcard Interactive Logic -->
+<script>
+(() => {
+  const cardsData = {{ cards|tojson|safe }};
+  const docId = {{ document.id }};
+  const csrfToken = "{{ csrf_token }}";
+
+  let activeCards = [...cardsData];
+  let currentIndex = 0;
+  let isFlipped = false;
+
+  const cardElement = document.getElementById('flashcard-element');
+  const frontText = document.getElementById('card-front-text');
+  const backText = document.getElementById('card-back-text');
+  const catBadge = document.getElementById('card-category-badge');
+  const boxBadge = document.getElementById('card-box-badge');
+  const hintText = document.getElementById('card-hint-text');
+  const counterText = document.getElementById('card-counter-text');
+  const progressBar = document.getElementById('deck-progress-bar');
+  const btnPrev = document.getElementById('btn-prev-card');
+  const btnNext = document.getElementById('btn-next-card');
+  const btnShuffle = document.getElementById('btn-shuffle-cards');
+  const btnToggleHint = document.getElementById('btn-toggle-hint');
+  const btnAudioFront = document.getElementById('btn-audio-front');
+  const btnAudioBack = document.getElementById('btn-audio-back');
+
+  if (!cardElement || activeCards.length === 0) return;
+
+  const renderCard = () => {
+    isFlipped = false;
+    cardElement.classList.remove('flipped');
+    
+    const card = activeCards[currentIndex];
+    frontText.textContent = card.front;
+    backText.textContent = card.back;
+    catBadge.textContent = card.category;
+    boxBadge.textContent = `Leitner Box ${card.box}`;
+    hintText.textContent = `Hint: ${card.hint}`;
+    hintText.classList.add('hidden');
+
+    counterText.textContent = `Card ${currentIndex + 1} of ${activeCards.length}`;
+    const pct = Math.round(((currentIndex + 1) / activeCards.length) * 100);
+    progressBar.style.width = `${pct}%`;
+  };
+
+  const flipCard = () => {
+    isFlipped = !isFlipped;
+    cardElement.classList.toggle('flipped', isFlipped);
+  };
+
+  cardElement.addEventListener('click', flipCard);
+
+  if (btnToggleHint) {
+    btnToggleHint.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hintText.classList.toggle('hidden');
+    });
+  }
+
+  const nextCard = () => {
+    if (currentIndex < activeCards.length - 1) {
+      currentIndex++;
+      renderCard();
+    } else {
+      currentIndex = 0;
+      renderCard();
+    }
+  };
+
+  const prevCard = () => {
+    if (currentIndex > 0) {
+      currentIndex--;
+      renderCard();
+    }
+  };
+
+  if (btnNext) btnNext.addEventListener('click', nextCard);
+  if (btnPrev) btnPrev.addEventListener('click', prevCard);
+
+  if (btnShuffle) {
+    btnShuffle.addEventListener('click', () => {
+      activeCards.sort(() => Math.random() - 0.5);
+      currentIndex = 0;
+      renderCard();
+    });
+  }
+
+  // Rate Card via SRS API
+  const rateCard = async (rating) => {
+    const card = activeCards[currentIndex];
+    try {
+      const formData = new URLSearchParams();
+      formData.append('card_id', card.id);
+      formData.append('rating', rating);
+      formData.append('_csrf_token', csrfToken);
+
+      const resp = await fetch(`/documents/${docId}/flashcards/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString()
+      });
+
+      const res = await resp.json();
+      if (res.success) {
+        card.box = res.new_box;
+        boxBadge.textContent = `Leitner Box ${res.new_box}`;
+      }
+    } catch (err) {
+      console.error('Failed to update SRS rating', err);
+    }
+    nextCard();
+  };
+
+  document.querySelectorAll('.srs-rate-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rating = btn.getAttribute('data-rating');
+      rateCard(rating);
+    });
+  });
+
+  // Box Filter Tabs
+  document.querySelectorAll('.box-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.box-filter-btn').forEach(b => {
+        b.classList.remove('bg-white', 'text-indigo-700', 'shadow-xs', 'font-bold');
+        b.classList.add('text-slate-600');
+      });
+      btn.classList.add('bg-white', 'text-indigo-700', 'shadow-xs', 'font-bold');
+      btn.classList.remove('text-slate-600');
+
+      const targetBox = btn.getAttribute('data-box');
+      if (targetBox === 'all') {
+        activeCards = [...cardsData];
+      } else if (targetBox === '3') {
+        activeCards = cardsData.filter(c => c.box >= 3);
+      } else {
+        activeCards = cardsData.filter(c => c.box === parseInt(targetBox));
+      }
+
+      if (activeCards.length === 0) {
+        activeCards = [...cardsData];
+      }
+      currentIndex = 0;
+      renderCard();
+    });
+  });
+
+  // Keyboard Shortcuts (Space = Flip, 1 = Again, 2 = Hard, 3 = Good, 4 = Easy)
+  window.addEventListener('keydown', (e) => {
+    if (['input', 'textarea'].includes(document.activeElement.tagName.toLowerCase())) return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      flipCard();
+    } else if (e.key === '1') {
+      rateCard('again');
+    } else if (e.key === '2') {
+      rateCard('hard');
+    } else if (e.key === '3') {
+      rateCard('good');
+    } else if (e.key === '4') {
+      rateCard('easy');
+    } else if (e.code === 'ArrowRight') {
+      nextCard();
+    } else if (e.code === 'ArrowLeft') {
+      prevCard();
+    }
+  });
+
+  // Audio Speech Synthesis
+  const speakText = (text) => {
+    if (!('speechSynthesis' in window) || !text) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 0.95;
+    window.speechSynthesis.speak(utt);
+  };
+
+  if (btnAudioFront) {
+    btnAudioFront.addEventListener('click', (e) => {
+      e.stopPropagation();
+      speakText(activeCards[currentIndex].front);
+    });
+  }
+
+  if (btnAudioBack) {
+    btnAudioBack.addEventListener('click', (e) => {
+      e.stopPropagation();
+      speakText(activeCards[currentIndex].back);
+    });
+  }
+
+  renderCard();
+})();
+</script>
+{% endblock %}

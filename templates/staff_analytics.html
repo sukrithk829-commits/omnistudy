@@ -1,0 +1,614 @@
+{% extends 'base.html' %}
+{% block title %}Teaching Analytics & Student Intelligence · OmniStudy{% endblock %}
+
+{% block content %}
+<div class="space-y-7" id="staff-analytics-root">
+  <!-- Top Navigation & Action Header -->
+  <section class="surface relative overflow-hidden px-6 py-8 sm:px-9 sm:py-10">
+    <div class="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-violet-200/40 blur-3xl"></div>
+    <div class="absolute -bottom-20 right-32 h-44 w-44 rounded-full bg-cyan-200/40 blur-3xl"></div>
+    <div class="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-600">
+          <a href="{{ url_for('dashboard') }}" class="hover:underline flex items-center gap-1">
+            <span>← Back to Dashboard</span>
+          </a>
+          <span>·</span>
+          <span>Department Performance Intelligence</span>
+        </div>
+        <h1 class="page-title mt-2 max-w-xl">Teaching Analytics & Student Insights</h1>
+        <p class="page-copy">
+          Real-time cohort diagnostics, early-warning remediation radar, multi-modal assessment tracking (Quizzes, Oral Viva & Flashcards), and topic gap analysis.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <a class="btn-primary !py-2 !px-4 text-xs font-bold shadow-md" href="{{ url_for('staff_report') }}">
+          <span>📄</span> Executive Teaching Report (PDF)
+        </a>
+        <div class="relative inline-block text-left" id="staffExportDropdown">
+          <button type="button" onclick="document.getElementById('staffExportMenu').classList.toggle('hidden')" class="btn-secondary !py-2 !px-4 text-xs font-bold shadow-xs flex items-center gap-1.5">
+            <span>📊</span> Export Records ▾
+          </button>
+          <div id="staffExportMenu" class="hidden absolute right-0 z-50 mt-1 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+            <div class="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-indigo-600">Styled Excel Workbooks (.xlsx)</div>
+            <a href="{{ url_for('export_staff_excel') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100/70 transition-colors">
+              <span>📑</span> Master Teaching Dossier (.xlsx)
+            </a>
+            <a href="{{ url_for('export_staff_excel', report_type='gradebook') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-700 transition-colors">
+              <span>📊</span> Student Gradebook (.xlsx)
+            </a>
+            <a href="{{ url_for('export_staff_excel', report_type='materials') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-700 transition-colors">
+              <span>📊</span> Materials Audit (.xlsx)
+            </a>
+            <a href="{{ url_for('export_staff_excel', report_type='attempts') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-700 transition-colors">
+              <span>📊</span> Attempts Ledger (.xlsx)
+            </a>
+            <div class="my-1.5 border-t border-slate-100"></div>
+            <div class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Plain CSV Raw Exports</div>
+            <a href="{{ url_for('export_staff_roster', type='summary') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+              <span>📥</span> Gradebook (.csv)
+            </a>
+            <a href="{{ url_for('export_staff_roster', type='materials') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+              <span>📥</span> Materials Audit (.csv)
+            </a>
+            <a href="{{ url_for('export_staff_roster', type='attempts') }}" class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+              <span>📥</span> Attempts Ledger (.csv)
+            </a>
+          </div>
+        </div>
+        <a class="btn-secondary !py-2 !px-4 text-xs font-bold shadow-xs" href="{{ url_for('new_document') }}">
+          <span>＋</span> Publish Material
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Metric Overview Cards -->
+  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <article class="metric-card">
+      <div class="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-indigo-50/60"></div>
+      <p class="metric-label">Student Quiz Attempts</p>
+      <p class="metric-value text-indigo-600">{{ overview.attempts }}</p>
+      <div class="mt-4 h-1 w-12 rounded-full bg-indigo-500"></div>
+    </article>
+
+    <article class="metric-card">
+      <div class="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-violet-50/60"></div>
+      <p class="metric-label">Assessed Learners</p>
+      <p class="metric-value text-violet-600">{{ overview.learners }}</p>
+      <div class="mt-4 h-1 w-12 rounded-full bg-violet-500"></div>
+    </article>
+
+    <article class="metric-card">
+      <div class="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-teal-50/60"></div>
+      <p class="metric-label">Cohort Average Mastery</p>
+      <p class="metric-value text-teal-600">
+        {{ overview.average_score if overview.average_score is not none else '—' }}{% if overview.average_score is not none %}%{% endif %}
+      </p>
+      <div class="mt-4 h-1 w-12 rounded-full bg-teal-500"></div>
+    </article>
+
+    <article class="metric-card">
+      <div class="absolute right-0 top-0 h-20 w-20 rounded-bl-full {{ 'bg-rose-50/60' if at_risk_learners else 'bg-emerald-50/60' }}"></div>
+      <p class="metric-label">Academic Intervention Status</p>
+      <p class="metric-value {{ 'text-rose-600' if at_risk_learners else 'text-emerald-600' }}">
+        {% if at_risk_learners %}
+        {{ at_risk_learners|length }} At-Risk
+        {% else %}
+        Healthy
+        {% endif %}
+      </p>
+      <div class="mt-4 h-1 w-12 rounded-full {{ 'bg-rose-500' if at_risk_learners else 'bg-emerald-500' }}"></div>
+    </article>
+  </section>
+
+  <!-- INNOVATION 1: Cohort Grade Distribution & Topic Knowledge Gaps Diagnostic (Side-by-Side) -->
+  <section class="grid gap-6 lg:grid-cols-2">
+    <!-- Left: Grade Distribution Spectrum -->
+    <div class="panel">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <p class="eyebrow text-indigo-600">Cohort Spectrum</p>
+          <h2 class="mt-0.5 text-lg font-bold text-ink">Mastery & Grade Distribution</h2>
+        </div>
+        <span class="text-xs text-slate-500 font-semibold">{{ distribution.total }} Total Evaluated</span>
+      </div>
+      
+      <!-- Multi-Segment Percentage Progress Bar -->
+      <div class="mt-4">
+        <div class="h-4 w-full rounded-full bg-slate-100 flex overflow-hidden shadow-inner">
+          <div style="width: {{ distribution_pct.A }}%;" class="bg-emerald-500 transition-all duration-500" title="Grade A: {{ distribution_pct.A }}%"></div>
+          <div style="width: {{ distribution_pct.B }}%;" class="bg-indigo-500 transition-all duration-500" title="Grade B: {{ distribution_pct.B }}%"></div>
+          <div style="width: {{ distribution_pct.C }}%;" class="bg-amber-400 transition-all duration-500" title="Grade C: {{ distribution_pct.C }}%"></div>
+          <div style="width: {{ distribution_pct.D }}%;" class="bg-rose-500 transition-all duration-500" title="Grade D: {{ distribution_pct.D }}%"></div>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        <div class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-2 text-center">
+          <div class="flex items-center justify-center gap-1 text-[11px] font-bold text-emerald-800">
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span> Grade A (85%+)
+          </div>
+          <p class="text-lg font-black text-emerald-950 mt-0.5">{{ distribution.A }} <span class="text-[10px] font-normal text-emerald-700">({{ distribution_pct.A }}%)</span></p>
+        </div>
+
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/50 p-2 text-center">
+          <div class="flex items-center justify-center gap-1 text-[11px] font-bold text-indigo-800">
+            <span class="h-2 w-2 rounded-full bg-indigo-500"></span> Grade B (70-84%)
+          </div>
+          <p class="text-lg font-black text-indigo-950 mt-0.5">{{ distribution.B }} <span class="text-[10px] font-normal text-indigo-700">({{ distribution_pct.B }}%)</span></p>
+        </div>
+
+        <div class="rounded-xl border border-amber-100 bg-amber-50/50 p-2 text-center">
+          <div class="flex items-center justify-center gap-1 text-[11px] font-bold text-amber-800">
+            <span class="h-2 w-2 rounded-full bg-amber-400"></span> Grade C (50-69%)
+          </div>
+          <p class="text-lg font-black text-amber-950 mt-0.5">{{ distribution.C }} <span class="text-[10px] font-normal text-amber-700">({{ distribution_pct.C }}%)</span></p>
+        </div>
+
+        <div class="rounded-xl border border-rose-100 bg-rose-50/50 p-2 text-center">
+          <div class="flex items-center justify-center gap-1 text-[11px] font-bold text-rose-800">
+            <span class="h-2 w-2 rounded-full bg-rose-500"></span> Grade D (<50%)
+          </div>
+          <p class="text-lg font-black text-rose-950 mt-0.5">{{ distribution.D }} <span class="text-[10px] font-normal text-rose-700">({{ distribution_pct.D }}%)</span></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Knowledge Gaps & Remediation Insights -->
+    <div class="panel">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <p class="eyebrow text-amber-600">Teaching Diagnostics</p>
+          <h2 class="mt-0.5 text-lg font-bold text-ink">Topic-Level Knowledge Gaps</h2>
+        </div>
+        <span class="badge bg-amber-100 text-amber-800 text-[10px] font-bold">Needs Faculty Review</span>
+      </div>
+
+      <div class="mt-4 space-y-2.5">
+        {% if knowledge_gaps %}
+          {% for gap in knowledge_gaps[:3] %}
+          <div class="flex items-start justify-between p-3 rounded-xl border border-amber-200/80 bg-amber-50/50">
+            <div>
+              <a href="{{ url_for('document_detail', document_id=gap.id) }}" class="text-xs font-extrabold text-amber-950 hover:underline flex items-center gap-1">
+                <span>⚠️ {{ gap.title }}</span>
+              </a>
+              <p class="text-[11px] text-amber-900/80 mt-0.5">
+                {{ gap.subject }} · {{ gap.unique_students_count }} student(s) attempted · Avg score: <strong>{{ gap.avg_mastery }}%</strong>
+              </p>
+              <p class="text-[10px] font-semibold text-amber-800 mt-1">
+                💡 Recommendation: Conduct a 10-minute revision or share the 1-Page Cheat Sheet before exams.
+              </p>
+            </div>
+            <a href="{{ url_for('cheat_sheet_view', document_id=gap.id) }}" class="btn-soft !py-1 !px-2 text-[10px] font-bold text-amber-900 bg-amber-100 shrink-0">
+              Open Cheat Sheet
+            </a>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="py-8 text-center text-slate-500">
+            <p class="text-2xl mb-1">🎉</p>
+            <p class="text-xs font-bold text-slate-700">No Critical Knowledge Gaps Detected</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">All your lecture notes with recorded attempts have healthy cohort averages (>=75%).</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- INNOVATION 2: Early-Warning & Remediation Intervention Radar (Shows if at-risk learners exist) -->
+  {% if at_risk_learners %}
+  <section class="rounded-3xl border-2 border-rose-300 bg-rose-50/60 p-6 sm:p-7 shadow-sm">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-rose-200">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="grid h-6 w-6 place-items-center rounded-lg bg-rose-600 text-white text-xs font-bold">🚨</span>
+          <h2 class="text-base sm:text-lg font-black text-rose-950">Early-Warning Remediation Radar ({{ at_risk_learners|length }} Students)</h2>
+        </div>
+        <p class="text-xs text-rose-800/90 mt-1">
+          These students have an average mastery below 60% across your lecture notes. Proactive intervention improves exam retention by up to 35%.
+        </p>
+      </div>
+      <button type="button" id="btn-copy-at-risk-emails" class="btn-secondary !py-1.5 !px-3 text-xs font-bold text-rose-900 border-rose-300 bg-white hover:bg-rose-100 flex items-center gap-1.5 shrink-0 shadow-xs">
+        <span>📋</span> Copy At-Risk Email Roster
+      </button>
+    </div>
+
+    <!-- At-Risk Cards Grid -->
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {% for student in at_risk_learners %}
+      <div class="rounded-2xl border border-rose-200 bg-white p-4 shadow-xs flex flex-col justify-between">
+        <div>
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="font-extrabold text-ink text-sm">{{ student.name }}</p>
+              <p class="text-[11px] text-slate-400 font-mono">{{ student.email }}</p>
+            </div>
+            <span class="badge bg-rose-100 text-rose-800 font-black text-xs">
+              {{ student.average_score }}% Avg
+            </span>
+          </div>
+
+          <div class="mt-3 text-[11px] space-y-1 text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            <p><strong class="text-slate-800">Total Attempts:</strong> {{ student.attempts }}</p>
+            <p><strong class="text-slate-800">Weakest Focus:</strong> <span class="text-rose-700 font-semibold">{{ student.weakest_topic }}</span></p>
+            <p><strong class="text-slate-800">Last Active:</strong> {{ student.last_attempt[:10] if student.last_attempt else 'Never' }}</p>
+          </div>
+        </div>
+
+        <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+          <span class="text-[10px] text-slate-400">{{ student.department }} (Sem {{ student.semester }})</span>
+          <a href="mailto:{{ student.email }}?subject=Academic Support: {{ student.weakest_topic }}&body=Hi {{ student.name }},%0D%0A%0D%0AI noticed you might need additional assistance with {{ student.weakest_topic }}. Please review the lecture notes and reach out during office hours.%0D%0A%0D%0ABest regards," class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+            <span>✉️</span> Send Remedial Support
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Table 1: Per-Material Performance Breakdown -->
+  <section class="panel">
+    <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="eyebrow text-indigo-600">Lecture Materials</p>
+        <h2 class="mt-0.5 text-xl font-bold text-ink">Material Assessment Outcomes ({{ analytics|length }})</h2>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge bg-slate-100 text-slate-600 text-xs">Live engagement</span>
+        <a href="{{ url_for('export_staff_excel', report_type='materials') }}" class="btn-soft !py-1 !px-2.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100" title="Download Material Audit Excel Spreadsheet (.XLSX)">
+          <span>📊</span> Excel (.xlsx)
+        </a>
+        <a href="{{ url_for('export_staff_roster', type='materials') }}" class="btn-soft !py-1 !px-2.5 text-xs font-bold" title="Download Material Audit CSV">
+          <span>📥</span> CSV
+        </a>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Material Title</th>
+            <th>Readership Views</th>
+            <th>Active Learners</th>
+            <th>Quiz Attempts</th>
+            <th>Average Mastery</th>
+            <th>Interactive Study Suites</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in analytics %}
+          <tr>
+            <td>
+              <a class="font-bold text-ink transition hover:text-indigo-600 block text-sm" href="{{ url_for('document_detail', document_id=item.id) }}">
+                {{ item.title }}
+              </a>
+              <p class="mt-0.5 text-xs text-slate-400 font-semibold">{{ item.subject }}</p>
+            </td>
+            <td>
+              <span class="badge bg-indigo-50 text-indigo-700 font-bold">{{ item.views }}</span>
+            </td>
+            <td>
+              <span class="font-semibold text-slate-700">{{ item.learners }}</span>
+            </td>
+            <td>
+              <span class="font-semibold text-slate-700">{{ item.attempts }}</span>
+            </td>
+            <td>
+              {% if item.average_score is not none %}
+              <span class="badge {{ 'bg-emerald-100 text-emerald-800' if item.average_score >= 80 else ('bg-amber-100 text-amber-800' if item.average_score >= 60 else 'bg-rose-100 text-rose-800') }} font-black text-xs">
+                {{ item.average_score }}%
+              </span>
+              {% else %}
+              <span class="badge bg-slate-100 text-slate-400 text-xs">Unattempted</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="flex items-center gap-1">
+                <a href="{{ url_for('flashcards_view', document_id=item.id) }}" class="btn-soft !py-1 !px-2 text-[10px] font-bold" title="Open 3D Flashcards">
+                  🃏 Flashcards
+                </a>
+                <a href="{{ url_for('concept_graph_view', document_id=item.id) }}" class="btn-soft !py-1 !px-2 text-[10px] font-bold" title="Open Concept Graph">
+                  🕸️ Graph
+                </a>
+                <a href="{{ url_for('cheat_sheet_view', document_id=item.id) }}" class="btn-soft !py-1 !px-2 text-[10px] font-bold" title="Open Cheat Sheet">
+                  📄 Cheat Sheet
+                </a>
+                <a href="{{ url_for('viva_view', document_id=item.id) }}" class="btn-soft !py-1 !px-2 text-[10px] font-bold" title="Open Socratic Viva">
+                  🎙️ Viva
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td class="px-5 py-12 text-center" colspan="6">
+              <p class="font-bold text-slate-700">No published materials yet.</p>
+              <p class="mt-1 text-xs text-slate-500">Publish a lecture material to begin tracking student performance.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- INNOVATION 3: 360° Multi-Modal Student Competency Ledger with Live Search, Filter Chips & Expandable Rows -->
+  <section class="panel">
+    <div class="mb-5 flex flex-col gap-4">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="eyebrow text-indigo-600">Student Intelligence</p>
+          <h2 class="mt-0.5 text-xl font-bold text-ink">360° Student Competency & Multi-Modal Ledger</h2>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <a href="{{ url_for('export_staff_excel', report_type='gradebook') }}" class="btn-soft !py-1.5 !px-3 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100" title="Download Student Gradebook Excel Spreadsheet (.XLSX)">
+            <span>📊</span> Gradebook (.xlsx)
+          </a>
+          <a href="{{ url_for('export_staff_excel', report_type='attempts') }}" class="btn-soft !py-1.5 !px-3 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100" title="Download Attempt History Excel Spreadsheet (.XLSX)">
+            <span>📊</span> Attempts (.xlsx)
+          </a>
+          <a href="{{ url_for('export_staff_roster', type='summary') }}" class="btn-soft !py-1.5 !px-3 text-xs font-bold" title="Download Student Gradebook CSV">
+            <span>📥</span> CSV
+          </a>
+        </div>
+      </div>
+
+      <!-- Live Search & Filter Bar -->
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        <!-- Search Input -->
+        <div class="relative w-full sm:w-80">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-xs pointer-events-none">🔍</span>
+          <input type="text" id="student-search-input" class="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Filter by student name, email, dept...">
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="flex flex-wrap items-center gap-1.5 w-full sm:w-auto" id="student-filter-chips">
+          <button type="button" data-filter="all" class="filter-chip active !py-1 !px-2.5 text-xs font-bold rounded-lg border bg-indigo-600 text-white border-indigo-600">
+            All ({{ learner_results|length }})
+          </button>
+          <button type="button" data-filter="at-risk" class="filter-chip !py-1 !px-2.5 text-xs font-bold rounded-lg border bg-white text-rose-700 border-slate-200 hover:border-rose-300">
+            🚨 At-Risk (<60%)
+          </button>
+          <button type="button" data-filter="honors" class="filter-chip !py-1 !px-2.5 text-xs font-bold rounded-lg border bg-white text-emerald-700 border-slate-200 hover:border-emerald-300">
+            🌟 Honors (85%+)
+          </button>
+          <button type="button" data-filter="viva" class="filter-chip !py-1 !px-2.5 text-xs font-bold rounded-lg border bg-white text-violet-700 border-slate-200 hover:border-violet-300">
+            🎙️ Oral Viva Active
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Student Intelligence Table -->
+    <div class="table-wrap">
+      <table class="data-table" id="student-intel-table">
+        <thead>
+          <tr>
+            <th>Student Profile</th>
+            <th>Quiz Attempts</th>
+            <th>Average Mastery</th>
+            <th>Oral Viva Score</th>
+            <th>Flashcard Practice</th>
+            <th>Last Active</th>
+            <th>Drilldown</th>
+          </tr>
+        </thead>
+        <tbody id="student-table-body">
+          {% for learner in learner_results %}
+          <tr class="student-row transition-colors" 
+              data-name="{{ learner.name|lower }}" 
+              data-email="{{ learner.email|lower }}" 
+              data-dept="{{ learner.department|lower }}"
+              data-is-at-risk="{{ 'true' if learner.is_at_risk else 'false' }}"
+              data-is-honors="{{ 'true' if learner.average_score >= 85 else 'false' }}"
+              data-has-viva="{{ 'true' if learner.viva_count > 0 else 'false' }}">
+            <td>
+              <div class="flex items-center gap-2.5">
+                <span class="grid h-8 w-8 place-items-center rounded-full font-bold text-xs {{ 'bg-rose-100 text-rose-800' if learner.is_at_risk else ('bg-emerald-100 text-emerald-800' if learner.average_score >= 85 else 'bg-indigo-100 text-indigo-800') }}">
+                  {{ learner.name[:2]|upper }}
+                </span>
+                <div>
+                  <p class="font-extrabold text-ink text-sm">{{ learner.name }}</p>
+                  <p class="text-xs text-slate-400 mt-0.5 font-mono">{{ learner.email }} · {{ learner.department }} (Sem {{ learner.semester }})</p>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="font-bold text-slate-800">{{ learner.attempts }}</span>
+              <span class="text-[10px] text-slate-400 block">quiz sessions</span>
+            </td>
+            <td>
+              <span class="badge {{ 'bg-emerald-100 text-emerald-800' if learner.average_score >= 80 else ('bg-amber-100 text-amber-800' if learner.average_score >= 60 else 'bg-rose-100 text-rose-800') }} font-black text-xs">
+                {{ learner.average_score }}%
+              </span>
+              <span class="text-[10px] text-slate-400 block mt-0.5">Best: {{ learner.best_score }}%</span>
+            </td>
+            <td>
+              {% if learner.viva_count > 0 %}
+              <div class="flex items-center gap-1.5">
+                <span class="badge bg-violet-100 text-violet-800 font-bold text-xs">
+                  🎙️ {{ learner.viva_score }}/10
+                </span>
+                <span class="text-[10px] text-slate-400">({{ learner.viva_count }} Qs)</span>
+              </div>
+              {% else %}
+              <span class="text-[11px] text-slate-400">None yet</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if learner.flashcards_reviewed > 0 %}
+              <span class="badge bg-sky-100 text-sky-800 font-bold text-xs">
+                🃏 {{ learner.flashcards_reviewed }} cards
+              </span>
+              {% else %}
+              <span class="text-[11px] text-slate-400">None yet</span>
+              {% endif %}
+            </td>
+            <td class="whitespace-nowrap text-xs text-slate-500">
+              {{ learner.last_attempt[:16].replace('T', ' ') if learner.last_attempt else '—' }}
+            </td>
+            <td>
+              {% if learner.doc_breakdown %}
+              <button type="button" onclick="toggleStudentDrilldown('drilldown-{{ learner.id }}')" class="btn-soft !py-1 !px-2 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+                Notes ({{ learner.doc_breakdown|length }}) ▾
+              </button>
+              {% else %}
+              <span class="text-[10px] text-slate-400">—</span>
+              {% endif %}
+            </td>
+          </tr>
+
+          <!-- Expandable Student Note-by-Note Drilldown Sub-row -->
+          {% if learner.doc_breakdown %}
+          <tr id="drilldown-{{ learner.id }}" class="hidden bg-slate-50/70 student-drilldown-row">
+            <td colspan="7" class="p-4">
+              <div class="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                <p class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-700 mb-2">
+                  📊 Performance Breakdown across Lecture Notes for {{ learner.name }}:
+                </p>
+                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {% for d in learner.doc_breakdown %}
+                  <div class="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 text-xs">
+                    <p class="font-bold text-slate-800 truncate" title="{{ d.title }}">{{ d.title }}</p>
+                    <p class="text-[10px] text-slate-400">{{ d.subject }}</p>
+                    <div class="mt-1.5 flex items-center justify-between text-[11px]">
+                      <span class="text-slate-600">Attempts: <strong>{{ d.attempts }}</strong></span>
+                      <span class="badge {{ 'bg-emerald-100 text-emerald-800' if d.avg_score >= 80 else ('bg-amber-100 text-amber-800' if d.avg_score >= 60 else 'bg-rose-100 text-rose-800') }} font-bold text-[10px]">
+                        {{ d.avg_score }}% avg
+                      </span>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          {% else %}
+          <tr id="no-students-row">
+            <td class="px-5 py-12 text-center text-slate-500 text-xs" colspan="7">
+              No student assessment attempts have been recorded yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- Toast Notification -->
+<div id="analytics-toast" class="fixed bottom-5 right-5 z-50 transform translate-y-12 opacity-0 transition-all duration-300 pointer-events-none rounded-xl bg-slate-900 text-white px-4 py-2.5 text-xs font-semibold shadow-xl flex items-center gap-2">
+  <span id="analytics-toast-icon">✅</span>
+  <span id="analytics-toast-message">Notification</span>
+</div>
+
+<script>
+// Helper: Toast
+function showAnalyticsToast(message, icon = '✅') {
+  const toast = document.getElementById('analytics-toast');
+  const msgEl = document.getElementById('analytics-toast-message');
+  const iconEl = document.getElementById('analytics-toast-icon');
+  if (!toast || !msgEl) return;
+  msgEl.textContent = message;
+  if (iconEl) iconEl.textContent = icon;
+  toast.classList.remove('opacity-0', 'translate-y-12', 'pointer-events-none');
+  setTimeout(() => {
+    toast.classList.add('opacity-0', 'translate-y-12', 'pointer-events-none');
+  }, 2500);
+}
+
+// 1. Toggle Export Dropdown
+document.addEventListener('click', function(e) {
+  const container = document.getElementById('staffExportDropdown');
+  const menu = document.getElementById('staffExportMenu');
+  if (container && menu && !container.contains(e.target)) {
+    menu.classList.add('hidden');
+  }
+});
+
+// 2. Toggle Drilldown Sub-row
+function toggleStudentDrilldown(id) {
+  const row = document.getElementById(id);
+  if (row) {
+    row.classList.toggle('hidden');
+  }
+}
+
+// 3. Copy At-Risk Email Roster
+const btnCopyAtRisk = document.getElementById('btn-copy-at-risk-emails');
+if (btnCopyAtRisk) {
+  btnCopyAtRisk.addEventListener('click', () => {
+    const emails = [];
+    {% for student in at_risk_learners %}
+    emails.push("{{ student.email }}");
+    {% endfor %}
+    if (emails.length > 0) {
+      navigator.clipboard.writeText(emails.join(', ')).then(() => {
+        showAnalyticsToast(`Copied ${emails.length} at-risk student email(s)!`, '📋');
+      }).catch(() => {
+        showAnalyticsToast('Unable to copy emails', '⚠️');
+      });
+    }
+  });
+}
+
+// 4. Live Student Search & Filtering
+(() => {
+  const searchInput = document.getElementById('student-search-input');
+  const filterChips = document.querySelectorAll('.filter-chip');
+  const studentRows = document.querySelectorAll('.student-row');
+  let currentFilter = 'all';
+
+  function filterStudents() {
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    studentRows.forEach(row => {
+      const name = row.getAttribute('data-name') || '';
+      const email = row.getAttribute('data-email') || '';
+      const dept = row.getAttribute('data-dept') || '';
+      const isAtRisk = row.getAttribute('data-is-at-risk') === 'true';
+      const isHonors = row.getAttribute('data-is-honors') === 'true';
+      const hasViva = row.getAttribute('data-has-viva') === 'true';
+
+      const matchesSearch = !query || name.includes(query) || email.includes(query) || dept.includes(query);
+      
+      let matchesFilter = true;
+      if (currentFilter === 'at-risk') matchesFilter = isAtRisk;
+      else if (currentFilter === 'honors') matchesFilter = isHonors;
+      else if (currentFilter === 'viva') matchesFilter = hasViva;
+
+      const isVisible = matchesSearch && matchesFilter;
+      row.style.display = isVisible ? '' : 'none';
+
+      // Hide corresponding drilldown row if student row is hidden
+      const nextSibling = row.nextElementSibling;
+      if (nextSibling && nextSibling.classList.contains('student-drilldown-row') && !isVisible) {
+        nextSibling.classList.add('hidden');
+      }
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', filterStudents);
+  }
+
+  filterChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      filterChips.forEach(c => {
+        c.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-600');
+        c.classList.add('bg-white');
+      });
+      chip.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600');
+      chip.classList.remove('bg-white');
+      currentFilter = chip.getAttribute('data-filter');
+      filterStudents();
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,733 @@
+{% extends 'base.html' %}
+{% block title %}Exam Cheat Sheet · {{ document.title }} · OmniStudy{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-5xl mx-auto" id="cheat-sheet-root">
+  <!-- Screen Navigation & Print Controls (Hidden on Print) -->
+  <div class="print:hidden flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-600">
+        <a href="{{ url_for('document_detail', document_id=document.id) }}" class="hover:underline flex items-center gap-1">
+          <span>← Back to Note</span>
+        </a>
+        <span>·</span>
+        <span>Rapid Exam Revision Studio</span>
+      </div>
+      <h1 class="mt-1 text-2xl sm:text-3xl font-extrabold text-ink flex items-center gap-2">
+        <span>📄 1-Page Exam Cheat Sheet</span>
+        <span class="badge bg-emerald-100 text-emerald-800 text-xs font-bold">Print-Ready A4</span>
+      </h1>
+      <p class="text-xs text-slate-500 mt-1">{{ document.title }} · {{ document.subject }} · Semester {{ document.semester }}</p>
+    </div>
+
+    <!-- Innovative Revision Action Toolbar -->
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Active Recall (Blur/Mask Answers) -->
+      <button type="button" id="btn-toggle-recall" class="btn-secondary !py-2 !px-3 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs" title="Hide definitions & answers to test your memory (Click to reveal)">
+        <span>👁️</span>
+        <span id="recall-label">Active Recall</span>
+      </button>
+
+      <!-- Audio Cram Narration -->
+      <button type="button" id="btn-toggle-audio" class="btn-secondary !py-2 !px-3 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs" title="Listen to key definitions and exam Q&A hands-free">
+        <span>🔊</span>
+        <span id="audio-label">Audio Cram</span>
+      </button>
+
+      <!-- Highlighter Mode -->
+      <button type="button" id="btn-toggle-highlighter" class="btn-secondary !py-2 !px-3 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs">
+        <span>🖍️</span>
+        <span>Highlighter</span>
+      </button>
+
+      <!-- Night Cram Theme -->
+      <button type="button" id="btn-toggle-night" class="btn-secondary !py-2 !px-3 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs" title="Switch to low-strain night mode for late-night revision">
+        <span>🌙</span>
+        <span id="night-label">Night Cram</span>
+      </button>
+
+      <!-- Copy Structured Summary -->
+      <button type="button" id="btn-copy-summary" class="btn-secondary !py-2 !px-3 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs" title="Copy clean bullet points to paste into WhatsApp or Notion">
+        <span>📋</span>
+        <span id="copy-summary-label">Copy</span>
+      </button>
+
+      <!-- Print / PDF -->
+      <button type="button" onclick="window.print()" class="btn-primary !py-2 !px-4 text-xs font-bold shadow-md flex items-center gap-1.5">
+        <span>🖨️</span>
+        <span>Print / Save PDF</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Dynamic Audio Cram Player Banner (Hidden by default) -->
+  <div id="audio-player-banner" class="hidden print:hidden rounded-2xl border border-indigo-200 bg-indigo-50/90 p-3 shadow-sm flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+    <div class="flex items-center gap-2.5">
+      <span class="grid h-7 w-7 place-items-center rounded-lg bg-indigo-600 text-white text-xs font-bold animate-pulse">
+        🔊
+      </span>
+      <div>
+        <p class="text-xs font-extrabold text-indigo-950 flex items-center gap-2">
+          <span>Audio Narration Studio</span>
+          <span id="audio-status-indicator" class="text-[10px] font-semibold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">Ready</span>
+        </p>
+        <p id="audio-current-track" class="text-[11px] text-indigo-800 truncate max-w-xs sm:max-w-md">Click Play to narrate core definitions & exam Q&A</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="button" id="btn-audio-play-pause" class="btn-primary !py-1.5 !px-3 text-xs font-bold">
+        <span>▶</span> Play
+      </button>
+      <button type="button" id="btn-audio-speed" class="btn-secondary !py-1.5 !px-2.5 text-xs font-bold text-indigo-900" title="Toggle audio speed">
+        1.0x
+      </button>
+      <button type="button" id="btn-audio-close" class="text-slate-400 hover:text-slate-700 font-bold px-2 py-1 text-sm" title="Dismiss audio player">
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- Active Recall Notice (Shows when Active Recall is turned on) -->
+  <div id="recall-notice-banner" class="hidden print:hidden rounded-xl border border-amber-200 bg-amber-50/90 px-3.5 py-2 text-xs text-amber-900 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span>💡</span>
+      <span><strong>Active Recall Active:</strong> Definitions and answers are blurred. Tap any blurred card to test and reveal your memory!</span>
+    </div>
+    <button type="button" id="btn-reveal-all-recall" class="text-[11px] font-bold text-amber-800 underline hover:text-amber-950">
+      Reveal All
+    </button>
+  </div>
+
+  <!-- A4 PRINTABLE CHEAT SHEET CONTAINER -->
+  <div id="printable-cheat-sheet" class="surface rounded-3xl border-2 border-slate-200 bg-white p-6 sm:p-8 shadow-xl print:p-0 print:border-none print:shadow-none print:rounded-none transition-colors duration-200">
+    
+    <!-- Printable Header Banner -->
+    <div class="border-b-2 border-indigo-600 pb-4 flex items-center justify-between sheet-header-banner">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-extrabold uppercase tracking-widest text-indigo-600">OMNISTUDY EXAM REVISION GRID</span>
+          <span class="text-xs text-slate-400">·</span>
+          <span class="text-xs font-semibold text-slate-500">{{ document.department }} (Sem {{ document.semester }})</span>
+        </div>
+        <h2 class="text-2xl font-black text-indigo-950 mt-0.5 sheet-title">{{ document.title }}</h2>
+      </div>
+      <div class="text-right text-xs text-slate-500">
+        <p class="font-bold text-indigo-700 sheet-subject">{{ document.subject|upper }}</p>
+        <p class="text-[10px]">High-Yield 1-Page Cheat Sheet</p>
+      </div>
+    </div>
+
+    <!-- 3-Column High-Density Grid -->
+    <div class="mt-6 grid gap-5 md:grid-cols-3 text-xs leading-relaxed">
+      
+      <!-- COLUMN 1: Core Definitions & Taxonomies -->
+      <div class="space-y-4">
+        <div class="sheet-card rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 transition-all duration-150">
+          <div class="flex items-center justify-between pb-2 border-b border-indigo-200/60">
+            <div class="flex items-center gap-1.5 font-black text-indigo-950 uppercase tracking-wide text-[11px]">
+              <span>📌</span>
+              <span>1. Core Definitions</span>
+            </div>
+            <span class="text-[9px] font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-1.5 py-0.5 rounded">
+              2 Marks Each
+            </span>
+          </div>
+          <div class="mt-3 space-y-3">
+            {% for d in cs.definitions %}
+            <div class="definition-card speech-item p-1 rounded-lg transition-all" data-speech-title="{{ d.term }}" data-speech-body="{{ d.def }}">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-indigo-900 block exam-highlight">{{ d.term }}</span>
+                <span class="text-[8px] font-bold uppercase text-indigo-500 bg-indigo-50 border border-indigo-200/80 px-1 py-0.2 rounded shrink-0">
+                  {{ d.weightage or '2M' }}
+                </span>
+              </div>
+              <p class="recall-target text-slate-700 text-[11px] mt-0.5 leading-snug exam-highlight cursor-pointer" title="Click to reveal if blurred">{{ d.def }}</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Executive Study Takeaways -->
+        {% if summary %}
+        <div class="sheet-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition-all duration-150">
+          <div class="flex items-center gap-1.5 font-black text-slate-900 uppercase tracking-wide text-[11px] pb-2 border-b border-slate-200">
+            <span>⚡</span>
+            <span>Key Takeaways</span>
+          </div>
+          <ul class="mt-3 space-y-2 text-[11px] text-slate-700">
+            {% for pt in summary[:3] %}
+            <li class="flex items-start gap-1.5 speech-item" data-speech-title="Key Takeaway" data-speech-body="{{ pt }}">
+              <span class="font-bold text-indigo-600 shrink-0">▸</span>
+              <span class="recall-target exam-highlight leading-snug cursor-pointer">{{ pt }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- COLUMN 2: High-Yield Mechanisms & Rules -->
+      <div class="space-y-4">
+        <div class="sheet-card rounded-2xl border border-violet-100 bg-violet-50/40 p-4 transition-all duration-150">
+          <div class="flex items-center justify-between pb-2 border-b border-violet-200/60">
+            <div class="flex items-center gap-1.5 font-black text-violet-950 uppercase tracking-wide text-[11px]">
+              <span>⚙️</span>
+              <span>2. Key Mechanisms</span>
+            </div>
+            <span class="text-[9px] font-extrabold uppercase tracking-wider text-violet-700 bg-violet-100/90 border border-violet-200 px-1.5 py-0.5 rounded">
+              5 Marks Core
+            </span>
+          </div>
+          <div class="mt-3 space-y-3">
+            {% for m in cs.mechanisms %}
+            <div class="mechanism-item speech-item flex items-start gap-2 text-[11px] text-slate-800 p-1 rounded-lg transition-all" data-speech-title="Mechanism {{ loop.index }}" data-speech-body="{{ m }}">
+              <span class="grid h-4 w-4 shrink-0 place-items-center rounded bg-violet-200 text-violet-900 font-bold text-[10px]">
+                {{ loop.index }}
+              </span>
+              <p class="leading-snug exam-highlight recall-target cursor-pointer" title="Click to reveal if blurred">{{ m }}</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Exam Alert Box -->
+        <div class="rounded-2xl border-2 border-amber-300 bg-amber-50/80 p-3.5 text-amber-950">
+          <div class="flex items-center gap-1.5 font-black uppercase text-[10px] text-amber-800">
+            <span>⚠️</span>
+            <span>Common Exam Pitfall</span>
+          </div>
+          <p class="mt-1 text-[10px] leading-snug">
+            Do not confuse architectural structure with physical implementation. Always state key abstraction layers, inputs, and final outcomes clearly.
+          </p>
+        </div>
+
+        <!-- Student Exam Reminders & Formulas Sticky Note (Print-Ready & Persisted) -->
+        <div class="rounded-2xl border-2 border-amber-200/90 bg-amber-50/60 p-3.5 text-amber-950 shadow-xs">
+          <div class="flex items-center justify-between font-black uppercase text-[10px] text-amber-900 border-b border-amber-200/70 pb-1.5 mb-2">
+            <span class="flex items-center gap-1.5">
+              <span>📝</span>
+              <span>My Last-Minute Memo</span>
+            </span>
+            <span class="text-[9px] font-normal text-amber-700 print:hidden">Auto-saves & Prints</span>
+          </div>
+          <textarea id="student-exam-notes" rows="3" class="w-full bg-white/90 border border-amber-200/80 rounded-xl p-2 text-[10px] text-slate-800 leading-snug focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-amber-800/40 resize-none print:border-none print:p-0 print:bg-transparent" placeholder="Type personal formulas, seat/room notes, or mnemonics here (auto-saved)..."></textarea>
+        </div>
+      </div>
+
+      <!-- COLUMN 3: High-Probability Exam Questions & Answers -->
+      <div class="space-y-4">
+        <div class="sheet-card rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 transition-all duration-150">
+          <div class="flex items-center justify-between pb-2 border-b border-emerald-200/60">
+            <div class="flex items-center gap-1.5 font-black text-emerald-950 uppercase tracking-wide text-[11px]">
+              <span>🎯</span>
+              <span>3. High-Yield Q&A</span>
+            </div>
+            <span class="text-[9px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-100/90 border border-emerald-200 px-1.5 py-0.5 rounded">
+              High Probability
+            </span>
+          </div>
+          <div class="mt-3 space-y-3">
+            {% for qa in cs.exam_qa %}
+            <div class="rounded-xl bg-white p-2.5 border border-emerald-100 shadow-xs speech-item transition-all" data-speech-title="{{ qa.q }}" data-speech-body="{{ qa.a }}">
+              <div class="flex items-center justify-between gap-1">
+                <p class="font-bold text-emerald-950 text-[11px] leading-tight">Q: {{ qa.q }}</p>
+                <span class="text-[8px] font-bold uppercase text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.2 rounded shrink-0">
+                  {{ qa.weightage or '2M' }}
+                </span>
+              </div>
+              <p class="text-slate-700 text-[10px] mt-1 pt-1 border-t border-slate-100 leading-snug exam-highlight recall-target cursor-pointer" title="Click to reveal if blurred">
+                <strong class="text-emerald-700">Ans:</strong> {{ qa.a }}
+              </p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Dynamic Exam Readiness Checklist with Progress Bar -->
+        <div class="sheet-card rounded-2xl border border-slate-200 bg-white p-3.5 text-[10px] shadow-xs">
+          <div class="flex items-center justify-between mb-1.5">
+            <p class="font-bold text-slate-800 uppercase tracking-wider">Exam Readiness Check:</p>
+            <span id="readiness-percent-badge" class="font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">0%</span>
+          </div>
+          
+          <!-- Mini Progress Bar -->
+          <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-2.5">
+            <div id="readiness-progress-bar" class="bg-indigo-600 h-full rounded-full transition-all duration-300" style="width: 0%;"></div>
+          </div>
+
+          <div class="space-y-1.5 text-slate-600" id="readiness-checklist-container">
+            {% for item in cs.checklist %}
+            <label class="flex items-start gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
+              <input type="checkbox" data-idx="{{ loop.index0 }}" class="exam-check-item mt-0.5 rounded text-indigo-600 focus:ring-indigo-500">
+              <span class="leading-tight">{{ item }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Printable Footer -->
+    <div class="mt-6 pt-3 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400">
+      <span>OmniStudy Academic Suite · Self-Paced Exam Mastery</span>
+      <span>Document ID: #{{ document.id }} · Verified Academic Material</span>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notification for Copy / Status -->
+<div id="cheat-sheet-toast" class="fixed bottom-5 right-5 z-50 transform translate-y-12 opacity-0 transition-all duration-300 pointer-events-none rounded-xl bg-slate-900 text-white px-4 py-2.5 text-xs font-semibold shadow-xl flex items-center gap-2">
+  <span id="toast-icon">✅</span>
+  <span id="toast-message">Summary copied to clipboard!</span>
+</div>
+
+<!-- Styles: Print, Night Cram, Active Recall, and Speech Highlight -->
+<style>
+  /* 1. Print Specific Formatting */
+  @media print {
+    body { background: #ffffff !important; color: #000000 !important; }
+    nav, header, footer, .print\:hidden, #audio-player-banner, #recall-notice-banner, #cheat-sheet-toast { display: none !important; }
+    .surface { box-shadow: none !important; border: none !important; padding: 0 !important; }
+    @page { margin: 0.8cm; size: A4 portrait; }
+    
+    /* Ensure all text is completely visible when printing */
+    .recall-target {
+      filter: none !important;
+      color: inherit !important;
+      background: transparent !important;
+      user-select: auto !important;
+    }
+    textarea#student-exam-notes {
+      border: none !important;
+      padding: 0 !important;
+      background: transparent !important;
+      resize: none !important;
+      height: auto !important;
+    }
+  }
+
+  /* 2. Highlighter Mode Active */
+  .highlight-active {
+    background-color: #fef08a !important;
+    color: #713f12 !important;
+    font-weight: bold;
+    padding: 1px 3px;
+    border-radius: 4px;
+  }
+
+  /* 3. Active Recall (Blind Revision Mode) */
+  .active-recall-mode .recall-target {
+    filter: blur(5px);
+    background-color: #e2e8f0;
+    color: transparent !important;
+    user-select: none;
+    border-radius: 4px;
+    transition: filter 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+  }
+  .active-recall-mode .recall-target:hover {
+    background-color: #cbd5e1;
+  }
+  .active-recall-mode .recall-target.revealed {
+    filter: none !important;
+    background-color: transparent !important;
+    color: inherit !important;
+    user-select: text !important;
+  }
+
+  /* 4. Audio Narration Active Card Highlight */
+  .speaking-card {
+    box-shadow: 0 0 0 2px #6366f1, 0 4px 12px -2px rgba(99, 102, 241, 0.3) !important;
+    background-color: #eef2ff !important;
+    transform: scale(1.015);
+  }
+
+  /* 5. Night Cram Theme */
+  .night-cram {
+    background-color: #0f172a !important;
+    border-color: #334155 !important;
+    color: #f8fafc !important;
+  }
+  .night-cram .sheet-card {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #f8fafc !important;
+  }
+  .night-cram .sheet-header-banner {
+    border-color: #6366f1 !important;
+  }
+  .night-cram .sheet-title {
+    color: #f8fafc !important;
+  }
+  .night-cram .sheet-subject {
+    color: #818cf8 !important;
+  }
+  .night-cram .text-indigo-900,
+  .night-cram .text-indigo-950,
+  .night-cram .text-violet-950,
+  .night-cram .text-emerald-950 {
+    color: #e0e7ff !important;
+  }
+  .night-cram .text-slate-700,
+  .night-cram .text-slate-800 {
+    color: #cbd5e1 !important;
+  }
+  .night-cram .text-slate-500,
+  .night-cram .text-slate-600 {
+    color: #94a3b8 !important;
+  }
+  .night-cram .bg-white {
+    background-color: #1e293b !important;
+  }
+  .night-cram textarea#student-exam-notes {
+    background-color: #1e293b !important;
+    color: #fef08a !important;
+    border-color: #78350f !important;
+  }
+</style>
+
+<!-- Full Interactive Suite Controller Script -->
+<script>
+(() => {
+  const docId = "{{ document.id }}";
+  const sheetRoot = document.getElementById('printable-cheat-sheet');
+
+  // Helper: Toast Message
+  function showToast(message, icon = '✅') {
+    const toast = document.getElementById('cheat-sheet-toast');
+    const msgEl = document.getElementById('toast-message');
+    const iconEl = document.getElementById('toast-icon');
+    if (!toast || !msgEl) return;
+    msgEl.textContent = message;
+    if (iconEl) iconEl.textContent = icon;
+    toast.classList.remove('opacity-0', 'translate-y-12', 'pointer-events-none');
+    setTimeout(() => {
+      toast.classList.add('opacity-0', 'translate-y-12', 'pointer-events-none');
+    }, 2500);
+  }
+
+  // ==========================================
+  // 1. HIGHLIGHTER MODE
+  // ==========================================
+  let isHighlightActive = false;
+  const btnHighlighter = document.getElementById('btn-toggle-highlighter');
+  if (btnHighlighter) {
+    btnHighlighter.addEventListener('click', () => {
+      isHighlightActive = !isHighlightActive;
+      document.querySelectorAll('.exam-highlight').forEach(el => {
+        el.classList.toggle('highlight-active', isHighlightActive);
+      });
+      btnHighlighter.classList.toggle('bg-amber-100', isHighlightActive);
+      btnHighlighter.classList.toggle('text-amber-800', isHighlightActive);
+      btnHighlighter.classList.toggle('border-amber-300', isHighlightActive);
+      showToast(isHighlightActive ? 'Highlighter Mode ON' : 'Highlighter Mode OFF', '🖍️');
+    });
+  }
+
+  // ==========================================
+  // 2. ACTIVE RECALL ("BLIND REVISION") MODE
+  // ==========================================
+  let isRecallActive = false;
+  const btnRecall = document.getElementById('btn-toggle-recall');
+  const recallBanner = document.getElementById('recall-notice-banner');
+  const btnRevealAll = document.getElementById('btn-reveal-all-recall');
+
+  if (btnRecall) {
+    btnRecall.addEventListener('click', () => {
+      isRecallActive = !isRecallActive;
+      sheetRoot.classList.toggle('active-recall-mode', isRecallActive);
+      btnRecall.classList.toggle('bg-indigo-100', isRecallActive);
+      btnRecall.classList.toggle('text-indigo-800', isRecallActive);
+      btnRecall.classList.toggle('border-indigo-300', isRecallActive);
+      
+      if (recallBanner) {
+        recallBanner.classList.toggle('hidden', !isRecallActive);
+      }
+
+      // If turning on, reset all revealed statuses
+      if (isRecallActive) {
+        document.querySelectorAll('.recall-target').forEach(el => el.classList.remove('revealed'));
+        showToast('Active Recall ON: Click any blurred text to reveal!', '👁️');
+      } else {
+        document.querySelectorAll('.recall-target').forEach(el => el.classList.remove('revealed'));
+        showToast('Active Recall OFF', '👁️');
+      }
+    });
+  }
+
+  // Click individual card to reveal in Active Recall mode
+  document.querySelectorAll('.recall-target').forEach(el => {
+    el.addEventListener('click', () => {
+      if (isRecallActive) {
+        el.classList.toggle('revealed');
+      }
+    });
+  });
+
+  if (btnRevealAll) {
+    btnRevealAll.addEventListener('click', () => {
+      document.querySelectorAll('.recall-target').forEach(el => el.classList.add('revealed'));
+      showToast('All answers revealed!', '💡');
+    });
+  }
+
+  // ==========================================
+  // 3. NIGHT CRAM MODE
+  // ==========================================
+  let isNightActive = localStorage.getItem('omnistudy_night_cram') === 'true';
+  const btnNight = document.getElementById('btn-toggle-night');
+  const nightLabel = document.getElementById('night-label');
+
+  function applyNightMode(active) {
+    if (!sheetRoot) return;
+    sheetRoot.classList.toggle('night-cram', active);
+    if (btnNight) {
+      btnNight.classList.toggle('bg-slate-800', active);
+      btnNight.classList.toggle('text-amber-300', active);
+      btnNight.classList.toggle('border-slate-700', active);
+    }
+    if (nightLabel) {
+      nightLabel.textContent = active ? 'Day Mode' : 'Night Cram';
+    }
+  }
+
+  if (btnNight) {
+    applyNightMode(isNightActive);
+    btnNight.addEventListener('click', () => {
+      isNightActive = !isNightActive;
+      localStorage.setItem('omnistudy_night_cram', isNightActive);
+      applyNightMode(isNightActive);
+      showToast(isNightActive ? 'Night Cram Mode ON' : 'Day Mode ON', isNightActive ? '🌙' : '☀️');
+    });
+  }
+
+  // ==========================================
+  // 4. STUDENT STICKY NOTES AUTO-SAVE
+  // ==========================================
+  const notesTextarea = document.getElementById('student-exam-notes');
+  if (notesTextarea) {
+    const savedNotes = localStorage.getItem(`omnistudy_sheet_notes_${docId}`);
+    if (savedNotes) {
+      notesTextarea.value = savedNotes;
+    }
+    notesTextarea.addEventListener('input', () => {
+      localStorage.setItem(`omnistudy_sheet_notes_${docId}`, notesTextarea.value);
+    });
+  }
+
+  // ==========================================
+  // 5. DYNAMIC READINESS CHECKLIST & PROGRESS
+  // ==========================================
+  const checkboxes = document.querySelectorAll('.exam-check-item');
+  const progressBar = document.getElementById('readiness-progress-bar');
+  const percentBadge = document.getElementById('readiness-percent-badge');
+
+  function updateChecklistProgress() {
+    if (!checkboxes.length) return;
+    let checkedCount = 0;
+    checkboxes.forEach((cb) => {
+      if (cb.checked) checkedCount++;
+    });
+    const percent = Math.round((checkedCount / checkboxes.length) * 100);
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (percentBadge) percentBadge.textContent = `${percent}%`;
+  }
+
+  // Load saved check state
+  checkboxes.forEach((cb) => {
+    const idx = cb.getAttribute('data-idx');
+    const isChecked = localStorage.getItem(`omnistudy_sheet_chk_${docId}_${idx}`) === 'true';
+    cb.checked = isChecked;
+
+    cb.addEventListener('change', () => {
+      localStorage.setItem(`omnistudy_sheet_chk_${docId}_${idx}`, cb.checked);
+      updateChecklistProgress();
+      if (cb.checked) {
+        showToast(`Progress: ${Math.round(((document.querySelectorAll('.exam-check-item:checked').length) / checkboxes.length) * 100)}% complete`, '🎯');
+      }
+    });
+  });
+  updateChecklistProgress();
+
+  // ==========================================
+  // 6. COPY STRUCTURED SUMMARY TO CLIPBOARD
+  // ==========================================
+  const btnCopy = document.getElementById('btn-copy-summary');
+  if (btnCopy) {
+    btnCopy.addEventListener('click', () => {
+      let text = `📄 OMNISTUDY EXAM REVISION: {{ document.title }}\n`;
+      text += `Subject: {{ document.subject }} | Department: {{ document.department }} (Sem {{ document.semester }})\n\n`;
+      
+      text += `📌 1. CORE DEFINITIONS:\n`;
+      document.querySelectorAll('.definition-card').forEach(d => {
+        const term = d.getAttribute('data-speech-title') || '';
+        const body = d.getAttribute('data-speech-body') || '';
+        if (term) text += `• ${term}: ${body}\n`;
+      });
+
+      text += `\n⚙️ 2. KEY PRINCIPLES & MECHANISMS:\n`;
+      document.querySelectorAll('.mechanism-item').forEach((m, i) => {
+        const body = m.getAttribute('data-speech-body') || '';
+        if (body) text += `${i + 1}. ${body}\n`;
+      });
+
+      text += `\n🎯 3. HIGH-YIELD EXAM Q&A:\n`;
+      document.querySelectorAll('#printable-cheat-sheet .sheet-card:nth-of-type(1) .speech-item').forEach(qa => {
+        const q = qa.getAttribute('data-speech-title') || '';
+        const a = qa.getAttribute('data-speech-body') || '';
+        if (q && a) text += `Q: ${q}\nAns: ${a}\n\n`;
+      });
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Cheat Sheet copied to clipboard!', '📋');
+      }).catch(() => {
+        showToast('Unable to copy to clipboard', '⚠️');
+      });
+    });
+  }
+
+  // ==========================================
+  // 7. WEB SPEECH API AUDIO NARRATION ENGINE
+  // ==========================================
+  const btnAudioToggle = document.getElementById('btn-toggle-audio');
+  const audioBanner = document.getElementById('audio-player-banner');
+  const btnPlayPause = document.getElementById('btn-audio-play-pause');
+  const btnSpeed = document.getElementById('btn-audio-speed');
+  const btnAudioClose = document.getElementById('btn-audio-close');
+  const trackDisplay = document.getElementById('audio-current-track');
+  const statusIndicator = document.getElementById('audio-status-indicator');
+
+  let isSpeechSupported = 'speechSynthesis' in window;
+  let speechItems = [];
+  let currentIndex = 0;
+  let isPlaying = false;
+  let speechRate = 1.0;
+
+  function collectSpeechItems() {
+    speechItems = [];
+    document.querySelectorAll('.speech-item').forEach((el) => {
+      const title = el.getAttribute('data-speech-title') || '';
+      const body = el.getAttribute('data-speech-body') || '';
+      if (title || body) {
+        speechItems.push({ el, title, body });
+      }
+    });
+  }
+
+  function stopSpeech() {
+    if (!isSpeechSupported) return;
+    window.speechSynthesis.cancel();
+    isPlaying = false;
+    document.querySelectorAll('.speaking-card').forEach(el => el.classList.remove('speaking-card'));
+    if (btnPlayPause) btnPlayPause.innerHTML = '<span>▶</span> Play';
+    if (statusIndicator) {
+      statusIndicator.textContent = 'Paused';
+      statusIndicator.className = 'text-[10px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded';
+    }
+  }
+
+  function speakItem(index) {
+    if (!isSpeechSupported || index >= speechItems.length) {
+      stopSpeech();
+      currentIndex = 0;
+      if (trackDisplay) trackDisplay.textContent = 'Narration completed.';
+      if (statusIndicator) statusIndicator.textContent = 'Finished';
+      return;
+    }
+
+    currentIndex = index;
+    const item = speechItems[index];
+
+    // Highlight current card
+    document.querySelectorAll('.speaking-card').forEach(el => el.classList.remove('speaking-card'));
+    item.el.classList.add('speaking-card');
+    item.el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    const spokenText = `${item.title}. ${item.body}`;
+    if (trackDisplay) trackDisplay.textContent = `Speaking: ${item.title || item.body.substring(0, 40) + '...'}`;
+
+    const utterance = new SpeechSynthesisUtterance(spokenText);
+    utterance.rate = speechRate;
+    utterance.onend = () => {
+      if (isPlaying) {
+        speakItem(index + 1);
+      }
+    };
+    utterance.onerror = () => {
+      if (isPlaying) speakItem(index + 1);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  if (btnAudioToggle && audioBanner) {
+    btnAudioToggle.addEventListener('click', () => {
+      if (!isSpeechSupported) {
+        alert('Web Speech narration is not supported in this browser.');
+        return;
+      }
+      collectSpeechItems();
+      audioBanner.classList.toggle('hidden');
+      const isVisible = !audioBanner.classList.contains('hidden');
+      btnAudioToggle.classList.toggle('bg-indigo-100', isVisible);
+      btnAudioToggle.classList.toggle('text-indigo-800', isVisible);
+      btnAudioToggle.classList.toggle('border-indigo-300', isVisible);
+
+      if (!isVisible) {
+        stopSpeech();
+      } else {
+        showToast('Audio Narration ready: Click Play!', '🔊');
+      }
+    });
+  }
+
+  if (btnPlayPause) {
+    btnPlayPause.addEventListener('click', () => {
+      if (!isSpeechSupported) return;
+      collectSpeechItems();
+      if (!speechItems.length) return;
+
+      if (!isPlaying) {
+        isPlaying = true;
+        btnPlayPause.innerHTML = '<span>⏸</span> Pause';
+        if (statusIndicator) {
+          statusIndicator.textContent = 'Speaking...';
+          statusIndicator.className = 'text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded';
+        }
+        speakItem(currentIndex);
+      } else {
+        stopSpeech();
+      }
+    });
+  }
+
+  if (btnSpeed) {
+    btnSpeed.addEventListener('click', () => {
+      if (speechRate === 1.0) {
+        speechRate = 1.25;
+      } else if (speechRate === 1.25) {
+        speechRate = 1.5;
+      } else {
+        speechRate = 1.0;
+      }
+      btnSpeed.textContent = `${speechRate.toFixed(2).replace('.00', '.0')}x`;
+      showToast(`Playback Speed: ${speechRate}x`, '⚡');
+      if (isPlaying) {
+        window.speechSynthesis.cancel();
+        speakItem(currentIndex);
+      }
+    });
+  }
+
+  if (btnAudioClose) {
+    btnAudioClose.addEventListener('click', () => {
+      stopSpeech();
+      if (audioBanner) audioBanner.classList.add('hidden');
+      if (btnAudioToggle) {
+        btnAudioToggle.classList.remove('bg-indigo-100', 'text-indigo-800', 'border-indigo-300');
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

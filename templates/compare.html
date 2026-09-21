@@ -1,0 +1,364 @@
+{% extends 'base.html' %}
+{% block title %}Compare Versions · {{ original.title }} · OmniStudy{% endblock %}
+
+{% block content %}
+<div class="space-y-6" id="diff-studio-root">
+  <!-- Header & Back Navigation -->
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-600">
+        <a href="{{ url_for('document_detail', document_id=original.id) }}" class="hover:underline flex items-center gap-1">
+          <span>← Back to {{ original.title }}</span>
+        </a>
+        <span>·</span>
+        <span>Differential Studio</span>
+      </div>
+      <h1 class="mt-1 text-2xl sm:text-3xl font-extrabold text-ink flex items-center gap-2">
+        <span>🔄 Version Comparison & Semantic Diff</span>
+      </h1>
+      <p class="text-xs text-slate-500 mt-1">
+        Synthesizing divergence between original revision and branched community enhancement.
+      </p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('document_detail', document_id=version.id) }}" class="btn-secondary text-xs font-semibold !py-2 !px-3">
+        View Branch Note →
+      </a>
+      <button type="button" id="btn-copy-version-content" class="btn-primary text-xs font-bold !py-2 !px-3">
+        📋 Copy Improved Version
+      </button>
+    </div>
+  </div>
+
+  <!-- Diff Metrics Ribbon -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+    <!-- Similarity Card -->
+    <div class="panel p-3.5 bg-gradient-to-br from-indigo-50/70 to-white border border-indigo-100 flex flex-col justify-between">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Text Similarity</span>
+      <div class="mt-1.5 flex items-baseline gap-1.5">
+        <span class="text-2xl font-black text-indigo-900">{{ stats.similarity_pct }}%</span>
+        <span class="text-[10px] text-indigo-600 font-semibold">match</span>
+      </div>
+      <div class="mt-2 h-1.5 w-full bg-indigo-100 rounded-full overflow-hidden">
+        <div class="h-full bg-indigo-600 rounded-full" style="width: {{ stats.similarity_pct }}%;"></div>
+      </div>
+    </div>
+
+    <!-- Word Delta -->
+    <div class="panel p-3.5 bg-gradient-to-br from-slate-50 to-white border border-slate-200/80 flex flex-col justify-between">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Word Count Delta</span>
+      <div class="mt-1.5 flex items-baseline gap-1.5">
+        <span class="text-2xl font-black {{ 'text-emerald-700' if stats.word_delta > 0 else ('text-rose-700' if stats.word_delta < 0 else 'text-slate-700') }}">
+          {{ '+' if stats.word_delta > 0 else '' }}{{ stats.word_delta }}
+        </span>
+        <span class="text-[10px] text-slate-500 font-medium">words</span>
+      </div>
+      <span class="text-[10px] text-slate-400 mt-2 truncate">{{ stats.orig_words }} → {{ stats.version_words }} total</span>
+    </div>
+
+    <!-- Additions -->
+    <div class="panel p-3.5 bg-emerald-50/60 border border-emerald-200/70 flex flex-col justify-between">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Lines Added</span>
+      <div class="mt-1.5 flex items-baseline gap-1.5">
+        <span class="text-2xl font-black text-emerald-800">+{{ stats.added_lines }}</span>
+        <span class="text-[10px] text-emerald-600 font-semibold">inserted</span>
+      </div>
+      <span class="text-[10px] text-emerald-600/80 mt-2 font-medium">New sections/points</span>
+    </div>
+
+    <!-- Deletions -->
+    <div class="panel p-3.5 bg-rose-50/60 border border-rose-200/70 flex flex-col justify-between">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-rose-700">Lines Removed</span>
+      <div class="mt-1.5 flex items-baseline gap-1.5">
+        <span class="text-2xl font-black text-rose-800">-{{ stats.removed_lines }}</span>
+        <span class="text-[10px] text-rose-600 font-semibold">omitted</span>
+      </div>
+      <span class="text-[10px] text-rose-600/80 mt-2 font-medium">Pruned outdated text</span>
+    </div>
+
+    <!-- Modifications -->
+    <div class="panel p-3.5 bg-amber-50/60 border border-amber-200/70 flex flex-col justify-between">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Lines Modified</span>
+      <div class="mt-1.5 flex items-baseline gap-1.5">
+        <span class="text-2xl font-black text-amber-800">{{ stats.modified_lines }}</span>
+        <span class="text-[10px] text-amber-600 font-semibold">adjusted</span>
+      </div>
+      <span class="text-[10px] text-amber-600/80 mt-2 font-medium">Word-level intra-edits</span>
+    </div>
+
+    <!-- Unchanged / Total Rows -->
+    <div class="panel p-3.5 bg-slate-50/60 border border-slate-200/70 flex flex-col justify-between">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Rows</span>
+      <div class="mt-1.5 flex items-baseline gap-1.5">
+        <span class="text-2xl font-black text-slate-700">{{ stats.total_rows }}</span>
+        <span class="text-[10px] text-slate-500 font-medium">lines</span>
+      </div>
+      <span class="text-[10px] text-slate-400 mt-2 truncate">{{ stats.unchanged_lines }} unchanged</span>
+    </div>
+  </div>
+
+  <!-- Studio Workspace & Diff Controls Toolbar -->
+  <div class="panel p-0 overflow-hidden border border-slate-200 shadow-card">
+    <!-- Toolbar -->
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/90 px-4 py-3 backdrop-blur-xs">
+      <!-- Left: View Mode Controls -->
+      <div class="flex items-center gap-2">
+        <div class="flex items-center rounded-xl bg-slate-200/70 p-0.5 text-xs font-bold text-slate-700">
+          <button type="button" id="btn-view-split" class="rounded-lg px-3 py-1.5 bg-white text-indigo-700 shadow-xs transition">
+            🪟 Side-by-Side
+          </button>
+          <button type="button" id="btn-view-unified" class="rounded-lg px-3 py-1.5 text-slate-600 hover:text-indigo-600 transition">
+            📜 Unified Inline
+          </button>
+        </div>
+
+        <!-- Folding Filter -->
+        <button type="button" id="btn-toggle-fold" class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition shadow-xs flex items-center gap-1.5">
+          <span id="fold-icon">👁️</span>
+          <span id="fold-label">Hide Unchanged Lines</span>
+        </button>
+      </div>
+
+      <!-- Right: Diff Jumper Navigator -->
+      <div class="flex items-center gap-2">
+        <span id="diff-counter" class="text-xs font-bold text-slate-500">
+          Showing all rows
+        </span>
+        <div class="flex items-center rounded-xl bg-white border border-slate-200 p-0.5 shadow-xs">
+          <button type="button" id="btn-diff-prev" class="px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition" title="Previous Change">
+            ↑ Prev Diff
+          </button>
+          <span class="h-3 w-px bg-slate-200"></span>
+          <button type="button" id="btn-diff-next" class="px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition" title="Next Change">
+            Next Diff ↓
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metadata Header Bar -->
+    <div class="grid border-b border-slate-200 bg-slate-100/70 text-xs font-bold text-slate-700 sm:grid-cols-2">
+      <div class="flex items-center justify-between px-5 py-2.5 border-b sm:border-b-0 sm:border-r border-slate-200">
+        <div class="flex items-center gap-2 truncate">
+          <span class="h-2 w-2 rounded-full bg-rose-500 shrink-0"></span>
+          <span class="text-slate-400 uppercase tracking-wider text-[10px]">Original:</span>
+          <span class="font-extrabold text-ink truncate">{{ original.title }}</span>
+        </div>
+        <span class="text-[10px] text-slate-400 shrink-0">by {{ original.owner_name }}</span>
+      </div>
+      <div class="flex items-center justify-between px-5 py-2.5">
+        <div class="flex items-center gap-2 truncate">
+          <span class="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>
+          <span class="text-emerald-700 uppercase tracking-wider text-[10px]">Improved:</span>
+          <span class="font-extrabold text-ink truncate">{{ version.title }}</span>
+        </div>
+        <span class="text-[10px] text-slate-400 shrink-0">by {{ version.owner_name }}</span>
+      </div>
+    </div>
+
+    <!-- Viewport: Side-by-Side (Split) Container -->
+    <div id="diff-split-container" class="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 font-mono text-xs overflow-x-auto">
+      <!-- Left Column: Original -->
+      <div class="divide-y divide-slate-100 bg-white min-w-[300px]" id="diff-original-col">
+        {% for row in rows %}
+        <div class="diff-row flex items-start min-h-[2rem] transition-colors {{ 'diff-unchanged-row' if not row.is_changed else 'diff-changed-row' }} {{ 'bg-rose-50/70' if row.old_state == 'removed' else ('bg-amber-50/40' if row.type == 'modified' else ('bg-slate-50/30' if row.old_state == 'empty' else '')) }}" data-row-idx="{{ loop.index0 }}" data-is-diff="{{ 1 if row.is_changed else 0 }}">
+          <!-- Gutter -->
+          <div class="w-12 shrink-0 select-none py-1.5 pr-2 text-right text-[10px] font-mono {{ 'text-rose-600 font-bold bg-rose-100/50' if row.old_state == 'removed' else 'text-slate-400 bg-slate-50/50' }} border-r border-slate-100">
+            {{ row.old_num if row.old_num is not none else ' ' }}
+          </div>
+          <!-- Line Content -->
+          <div class="flex-1 py-1.5 px-3 leading-relaxed break-words whitespace-pre-wrap {{ 'text-rose-900' if row.old_state == 'removed' else 'text-slate-700' }}">
+            {% if row.old_html %}
+              {{ row.old_html|safe }}
+            {% else %}
+              <span class="text-slate-300 select-none">~</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Right Column: Improved Version -->
+      <div class="divide-y divide-slate-100 bg-white min-w-[300px]" id="diff-version-col">
+        {% for row in rows %}
+        <div class="diff-row flex items-start min-h-[2rem] transition-colors {{ 'diff-unchanged-row' if not row.is_changed else 'diff-changed-row' }} {{ 'bg-emerald-50/70' if row.new_state == 'added' else ('bg-amber-50/40' if row.type == 'modified' else ('bg-slate-50/30' if row.new_state == 'empty' else '')) }}" data-row-idx="{{ loop.index0 }}" data-is-diff="{{ 1 if row.is_changed else 0 }}">
+          <!-- Gutter -->
+          <div class="w-12 shrink-0 select-none py-1.5 pr-2 text-right text-[10px] font-mono {{ 'text-emerald-700 font-bold bg-emerald-100/50' if row.new_state == 'added' else 'text-slate-400 bg-slate-50/50' }} border-r border-slate-100">
+            {{ row.new_num if row.new_num is not none else ' ' }}
+          </div>
+          <!-- Line Content -->
+          <div class="flex-1 py-1.5 px-3 leading-relaxed break-words whitespace-pre-wrap {{ 'text-emerald-950 font-medium' if row.new_state == 'added' else 'text-slate-700' }}">
+            {% if row.new_html %}
+              {{ row.new_html|safe }}
+            {% else %}
+              <span class="text-slate-300 select-none">~</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Viewport: Unified Inline Container (Initially Hidden) -->
+    <div id="diff-unified-container" class="hidden divide-y divide-slate-100 bg-white font-mono text-xs overflow-x-auto">
+      {% for row in rows %}
+      {% if row.type == 'unchanged' %}
+      <div class="diff-row diff-unchanged-row flex items-start min-h-[2rem] hover:bg-slate-50 transition-colors" data-row-idx="{{ loop.index0 }}" data-is-diff="0">
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] text-slate-400 bg-slate-50 border-r border-slate-100">{{ row.old_num }}</div>
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] text-slate-400 bg-slate-50 border-r border-slate-100">{{ row.new_num }}</div>
+        <div class="w-7 shrink-0 select-none py-1.5 text-center text-slate-300 font-bold"> </div>
+        <div class="flex-1 py-1.5 px-3 text-slate-700 leading-relaxed whitespace-pre-wrap">{{ row.old_html|safe }}</div>
+      </div>
+      {% elif row.type == 'removed' %}
+      <div class="diff-row diff-changed-row flex items-start min-h-[2rem] bg-rose-50/80 text-rose-950 hover:bg-rose-100/60 transition-colors" data-row-idx="{{ loop.index0 }}" data-is-diff="1">
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] font-bold text-rose-700 bg-rose-100/60 border-r border-rose-200">{{ row.old_num }}</div>
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] text-slate-300 bg-rose-50 border-r border-rose-200"> </div>
+        <div class="w-7 shrink-0 select-none py-1.5 text-center text-rose-700 font-bold">-</div>
+        <div class="flex-1 py-1.5 px-3 leading-relaxed whitespace-pre-wrap line-through">{{ row.old_html|safe }}</div>
+      </div>
+      {% elif row.type == 'added' %}
+      <div class="diff-row diff-changed-row flex items-start min-h-[2rem] bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100/60 transition-colors" data-row-idx="{{ loop.index0 }}" data-is-diff="1">
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] text-slate-300 bg-emerald-50 border-r border-emerald-200"> </div>
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] font-bold text-emerald-700 bg-emerald-100/60 border-r border-emerald-200">{{ row.new_num }}</div>
+        <div class="w-7 shrink-0 select-none py-1.5 text-center text-emerald-700 font-bold">+</div>
+        <div class="flex-1 py-1.5 px-3 leading-relaxed whitespace-pre-wrap font-medium">{{ row.new_html|safe }}</div>
+      </div>
+      {% else %} {# modified #}
+      <div class="diff-row diff-changed-row flex items-start min-h-[2rem] bg-rose-50/60 text-rose-950 hover:bg-rose-100/60 transition-colors" data-row-idx="{{ loop.index0 }}" data-is-diff="1">
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] font-bold text-rose-700 bg-rose-100/60 border-r border-rose-200">{{ row.old_num }}</div>
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] text-slate-300 bg-rose-50 border-r border-rose-200"> </div>
+        <div class="w-7 shrink-0 select-none py-1.5 text-center text-rose-700 font-bold">-</div>
+        <div class="flex-1 py-1.5 px-3 leading-relaxed whitespace-pre-wrap">{{ row.old_html|safe }}</div>
+      </div>
+      <div class="diff-row diff-changed-row flex items-start min-h-[2rem] bg-emerald-50/60 text-emerald-950 hover:bg-emerald-100/60 transition-colors" data-row-idx="{{ loop.index0 }}" data-is-diff="1">
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] text-slate-300 bg-emerald-50 border-r border-emerald-200"> </div>
+        <div class="w-10 shrink-0 select-none py-1.5 pr-1 text-right text-[10px] font-bold text-emerald-700 bg-emerald-100/60 border-r border-emerald-200">{{ row.new_num }}</div>
+        <div class="w-7 shrink-0 select-none py-1.5 text-center text-emerald-700 font-bold">+</div>
+        <div class="flex-1 py-1.5 px-3 leading-relaxed whitespace-pre-wrap font-medium">{{ row.new_html|safe }}</div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- Hidden Raw Content for Copying -->
+    <textarea id="raw-version-content" class="hidden">{{ version.content }}</textarea>
+  </div>
+</div>
+
+<script>
+(() => {
+  const btnSplit = document.getElementById('btn-view-split');
+  const btnUnified = document.getElementById('btn-view-unified');
+  const splitContainer = document.getElementById('diff-split-container');
+  const unifiedContainer = document.getElementById('diff-unified-container');
+  const btnFold = document.getElementById('btn-toggle-fold');
+  const foldIcon = document.getElementById('fold-icon');
+  const foldLabel = document.getElementById('fold-label');
+  const btnPrev = document.getElementById('btn-diff-prev');
+  const btnNext = document.getElementById('btn-diff-next');
+  const diffCounter = document.getElementById('diff-counter');
+  const btnCopy = document.getElementById('btn-copy-version-content');
+
+  let isFolded = false;
+  let currentDiffIndex = -1;
+
+  // 1. Switch View Mode
+  btnSplit.addEventListener('click', () => {
+    btnSplit.classList.add('bg-white', 'text-indigo-700', 'shadow-xs');
+    btnSplit.classList.remove('text-slate-600');
+    btnUnified.classList.remove('bg-white', 'text-indigo-700', 'shadow-xs');
+    btnUnified.classList.add('text-slate-600');
+    splitContainer.classList.remove('hidden');
+    unifiedContainer.classList.add('hidden');
+  });
+
+  btnUnified.addEventListener('click', () => {
+    btnUnified.classList.add('bg-white', 'text-indigo-700', 'shadow-xs');
+    btnUnified.classList.remove('text-slate-600');
+    btnSplit.classList.remove('bg-white', 'text-indigo-700', 'shadow-xs');
+    btnSplit.classList.add('text-slate-600');
+    unifiedContainer.classList.remove('hidden');
+    splitContainer.classList.add('hidden');
+  });
+
+  // 2. Fold / Unfold Unchanged Lines
+  btnFold.addEventListener('click', () => {
+    isFolded = !isFolded;
+    document.querySelectorAll('.diff-unchanged-row').forEach(el => {
+      el.classList.toggle('hidden', isFolded);
+    });
+    if (isFolded) {
+      foldIcon.textContent = '👁️‍🗨️';
+      foldLabel.textContent = 'Show Unchanged Lines';
+      btnFold.classList.add('border-indigo-400', 'bg-indigo-50', 'text-indigo-700');
+    } else {
+      foldIcon.textContent = '👁️';
+      foldLabel.textContent = 'Hide Unchanged Lines';
+      btnFold.classList.remove('border-indigo-400', 'bg-indigo-50', 'text-indigo-700');
+    }
+  });
+
+  // 3. Diff Navigation (Next / Prev)
+  const getActiveDiffRows = () => {
+    const isSplit = !splitContainer.classList.contains('hidden');
+    const container = isSplit ? splitContainer : unifiedContainer;
+    return Array.from(container.querySelectorAll('.diff-changed-row'));
+  };
+
+  const updateDiffCounter = (total) => {
+    if (total === 0) {
+      diffCounter.textContent = 'No differences found';
+    } else if (currentDiffIndex === -1) {
+      diffCounter.textContent = `${total} changed block${total > 1 ? 's' : ''}`;
+    } else {
+      diffCounter.textContent = `Diff ${currentDiffIndex + 1} of ${total}`;
+    }
+  };
+
+  const scrollToDiff = (index) => {
+    const diffRows = getActiveDiffRows();
+    if (diffRows.length === 0) return;
+    currentDiffIndex = (index + diffRows.length) % diffRows.length;
+    const target = diffRows[currentDiffIndex];
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Flash highlight
+    target.classList.add('ring-2', 'ring-indigo-500', 'ring-inset');
+    setTimeout(() => {
+      target.classList.remove('ring-2', 'ring-indigo-500', 'ring-inset');
+    }, 1200);
+
+    updateDiffCounter(diffRows.length);
+  };
+
+  btnNext.addEventListener('click', () => {
+    scrollToDiff(currentDiffIndex + 1);
+  });
+
+  btnPrev.addEventListener('click', () => {
+    scrollToDiff(currentDiffIndex - 1);
+  });
+
+  const initialRows = getActiveDiffRows();
+  updateDiffCounter(initialRows.length);
+
+  // 4. Copy Improved Version Content
+  btnCopy.addEventListener('click', async () => {
+    const rawContent = document.getElementById('raw-version-content').value;
+    try {
+      await navigator.clipboard.writeText(rawContent);
+      btnCopy.textContent = '✓ Copied to Clipboard!';
+      btnCopy.classList.replace('btn-primary', 'btn-success');
+      setTimeout(() => {
+        btnCopy.textContent = '📋 Copy Improved Version';
+        btnCopy.classList.replace('btn-success', 'btn-primary');
+      }, 2000);
+    } catch (err) {
+      alert('Could not copy automatically. You can view the note directly.');
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,869 @@
+{% extends 'base.html' %}
+{% block title %}Concept Knowledge Graph & Mind Map · {{ document.title }} · OmniStudy{% endblock %}
+
+{% block content %}
+<div class="space-y-6" id="concept-graph-root">
+  <!-- Top Navigation & Controls Header -->
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-600">
+        <a href="{{ url_for('document_detail', document_id=document.id) }}" class="hover:underline flex items-center gap-1">
+          <span>← Back to Note</span>
+        </a>
+        <span>·</span>
+        <span>Visual Knowledge Engine</span>
+      </div>
+      <h1 class="mt-1 text-2xl sm:text-3xl font-extrabold text-ink flex items-center gap-2">
+        <span>🕸️ Interactive Concept Graph & Mind Map</span>
+        <span class="badge bg-indigo-100 text-indigo-700 text-xs">{{ graph_data.nodes|length }} Concepts</span>
+      </h1>
+      <p class="text-xs text-slate-500 mt-1">{{ document.title }} · {{ document.subject }} · Semester {{ document.semester }}</p>
+    </div>
+
+    <!-- Layout & Export Toolbar -->
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Category Cluster Filter Pills -->
+      <div class="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200/80 text-xs font-bold">
+        <button type="button" class="group-filter-btn rounded-lg px-2.5 py-1 bg-white text-indigo-700 shadow-xs" data-filter="all">
+          All ({{ graph_data.nodes|length }})
+        </button>
+        <button type="button" class="group-filter-btn rounded-lg px-2 py-1 text-slate-600 hover:text-indigo-600" data-filter="core">
+          👑 Core
+        </button>
+        <button type="button" class="group-filter-btn rounded-lg px-2 py-1 text-slate-600 hover:text-indigo-600" data-filter="cluster">
+          📦 Areas
+        </button>
+        <button type="button" class="group-filter-btn rounded-lg px-2 py-1 text-slate-600 hover:text-indigo-600" data-filter="entity">
+          📌 Entities
+        </button>
+        <button type="button" class="group-filter-btn rounded-lg px-2 py-1 text-slate-600 hover:text-indigo-600" data-filter="property">
+          ⚙️ Mechanisms
+        </button>
+      </div>
+
+      <!-- Layout Modes Switcher -->
+      <div class="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200/80 text-xs font-bold">
+        <button type="button" class="layout-switch-btn rounded-lg px-2.5 py-1 bg-white text-indigo-700 shadow-xs" data-layout="force">
+          🔄 Fluid
+        </button>
+        <button type="button" class="layout-switch-btn rounded-lg px-2.5 py-1 text-slate-600 hover:text-indigo-600" data-layout="radial">
+          🌳 Tree
+        </button>
+        <button type="button" class="layout-switch-btn rounded-lg px-2.5 py-1 text-slate-600 hover:text-indigo-600" data-layout="orbital">
+          🪐 Orbital
+        </button>
+      </div>
+
+      <!-- Search Filter -->
+      <input 
+        type="text" 
+        id="graph-search-input" 
+        placeholder="Filter concepts..." 
+        class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none w-32 sm:w-40 shadow-xs"
+      >
+
+      <!-- Neighborhood Focus Mode Toggle -->
+      <button type="button" id="btn-focus-mode" class="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition shadow-xs flex items-center gap-1" title="Toggle Neighborhood Focus">
+        <span id="focus-mode-indicator">🎯</span>
+        <span id="focus-mode-label">Focus: Off</span>
+      </button>
+
+      <!-- Export PNG -->
+      <button type="button" id="btn-export-graph" class="btn-secondary !py-1.5 !px-3 text-xs font-semibold shadow-xs">
+        <span>📷</span> Export PNG
+      </button>
+    </div>
+  </div>
+
+  <!-- Interactive Graph Canvas & Side Inspector -->
+  <div class="relative grid lg:grid-cols-[1fr_22rem] gap-6 items-start">
+    <!-- Main Interactive Graph Viewport -->
+    <div class="panel p-0 overflow-hidden relative min-h-[620px] bg-[#0b0f19] rounded-3xl border border-slate-800/80 shadow-2xl flex flex-col justify-between">
+      
+      <!-- Top Left Floating Viewport Controls -->
+      <div class="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl p-1.5 border border-slate-800 text-xs font-bold text-slate-300 shadow-lg">
+        <button type="button" id="btn-zoom-in" class="h-7 w-7 rounded-lg hover:bg-slate-800 flex items-center justify-center transition" title="Zoom In">+</button>
+        <button type="button" id="btn-zoom-reset" class="px-2 h-7 rounded-lg hover:bg-slate-800 flex items-center justify-center transition text-[11px]" title="Reset View">100%</button>
+        <button type="button" id="btn-zoom-out" class="h-7 w-7 rounded-lg hover:bg-slate-800 flex items-center justify-center transition" title="Zoom Out">-</button>
+        <span class="h-4 w-px bg-slate-700 mx-0.5"></span>
+        <button type="button" id="btn-fit-screen" class="px-2 h-7 rounded-lg hover:bg-slate-800 flex items-center justify-center transition text-[11px]" title="Fit all nodes to screen">⊡ Fit</button>
+        <button type="button" id="btn-toggle-physics" class="px-2 h-7 rounded-lg hover:bg-slate-800 flex items-center justify-center transition text-[11px]" title="Pause / Resume physics simulation">⏸ Freeze</button>
+      </div>
+
+      <!-- Mini-map Radar in Bottom Right -->
+      <div class="absolute bottom-4 right-4 z-10 hidden sm:block overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/90 p-2 shadow-2xl backdrop-blur-md">
+        <div class="flex items-center justify-between px-1 pb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+          <span>Radar Mini-Map</span>
+          <span id="minimap-scale-txt" class="text-indigo-400 font-mono">1.0x</span>
+        </div>
+        <canvas id="minimap-canvas" width="130" height="90" class="rounded-xl bg-[#070b14] block cursor-crosshair border border-slate-800/80"></canvas>
+      </div>
+
+      <!-- Canvas Element -->
+      <canvas id="graph-canvas" class="w-full h-[620px] cursor-grab active:cursor-grabbing block"></canvas>
+
+      <!-- Graph Floating Legend Overlay (Bottom Left) -->
+      <div class="absolute bottom-4 left-4 right-4 sm:right-auto bg-slate-900/90 backdrop-blur-md rounded-2xl p-3 border border-slate-800 text-[11px] text-slate-300 flex flex-wrap items-center gap-3 shadow-xl">
+        <span class="flex items-center gap-1.5 font-bold"><span class="h-3 w-3 rounded-full bg-violet-500 inline-block shadow-xs shadow-violet-400"></span> 👑 Central Domain</span>
+        <span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-cyan-400 inline-block"></span> 📦 Area</span>
+        <span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-indigo-400 inline-block"></span> 📌 Entity</span>
+        <span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-emerald-400 inline-block"></span> ⚙️ Mechanism</span>
+        <span class="text-slate-500 hidden sm:inline">· Curves with live particles · Drag nodes · Click to focus</span>
+      </div>
+    </div>
+
+    <!-- Node Inspector Drawer (Right Panel) -->
+    <div class="panel bg-white rounded-3xl border border-slate-200 p-5 shadow-card" id="node-inspector-panel">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="h-3 w-3 rounded-full bg-indigo-600 inline-block animate-pulse"></span>
+          <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Concept Inspector</p>
+        </div>
+        <span id="inspector-group-badge" class="badge bg-violet-100 text-violet-800 text-[10px] font-bold">CORE DOMAIN</span>
+      </div>
+
+      <div class="mt-4" id="inspector-content">
+        <div class="flex items-start gap-2.5">
+          <span id="inspector-icon" class="text-2xl">👑</span>
+          <div class="min-w-0 flex-1">
+            <h3 id="inspector-title" class="text-lg font-black text-ink leading-tight truncate">Concept Title</h3>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span id="inspector-connectivity-badge" class="text-[11px] text-indigo-600 font-semibold">4 relationships</span>
+              <span class="text-slate-300">·</span>
+              <span id="inspector-importance-badge" class="text-[10px] text-amber-600 font-bold">⭐ 3.0 Score</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Academic Description -->
+        <p id="inspector-desc" class="text-xs text-slate-600 mt-3 leading-relaxed bg-slate-50/80 p-3 rounded-2xl border border-slate-100 font-medium">
+          Detailed conceptual definition extracted from lecture material.
+        </p>
+
+        <!-- Direct Source Quote Snippet -->
+        <div id="inspector-quote-box" class="mt-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs hidden">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+            <span>📜 Source Lecture Excerpt</span>
+          </p>
+          <p id="inspector-quote-text" class="mt-1 italic leading-relaxed text-[11px] text-amber-950 font-serif"></p>
+        </div>
+
+        <!-- Connected Relationships Section -->
+        <div class="mt-5 pt-4 border-t border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Connected Relationships</p>
+            <span id="inspector-conn-count" class="badge bg-slate-100 text-slate-600 text-[10px]">0</span>
+          </div>
+          <ul id="inspector-connections-list" class="space-y-1.5 text-xs text-slate-600 max-h-52 overflow-y-auto pr-1">
+            <li class="italic text-slate-400">Click a node to inspect relationships</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Quick Action Navigation in Note -->
+      <div class="mt-6 pt-4 border-t border-slate-100 space-y-2">
+        <a id="btn-jump-note" href="{{ url_for('document_detail', document_id=document.id) }}" class="btn-primary w-full text-center text-xs font-bold !py-2.5 shadow-md">
+          📖 Read Full Section in Note →
+        </a>
+        <a href="{{ url_for('flashcards_view', document_id=document.id) }}" class="btn-secondary w-full text-center text-xs font-semibold !py-2">
+          🃏 Study in Flashcard Deck
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Interactive Knowledge Graph Engine -->
+<script>
+(() => {
+  const graphData = {{ graph_json|safe }};
+  const canvas = document.getElementById('graph-canvas');
+  const minimapCanvas = document.getElementById('minimap-canvas');
+  if (!canvas || !graphData || !graphData.nodes || graphData.nodes.length === 0) return;
+
+  const ctx = canvas.getContext('2d');
+  const miniCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
+
+  let width, height;
+  let currentLayout = 'force'; // 'force', 'radial', 'orbital'
+  let isPhysicsRunning = true;
+  let activeGroupFilter = 'all'; // 'all', 'core', 'cluster', 'entity', 'property'
+  let neighborhoodFocus = 0; // 0 = Off, 1 = 1st-hop, 2 = 2nd-hop
+
+  // HiDPI Retina Canvas Resize Handler
+  const resize = () => {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    width = rect.width;
+    height = rect.height;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.resetTransform();
+    ctx.scale(dpr, dpr);
+  };
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Group Configurations
+  const GROUP_CONFIG = {
+    core: { color: '#a855f7', glow: '#c084fc', radius: 28, icon: '👑', label: 'CORE' },
+    cluster: { color: '#06b6d4', glow: '#22d3ee', radius: 22, icon: '📦', label: 'AREA' },
+    entity: { color: '#6366f1', glow: '#818cf8', radius: 16, icon: '📌', label: 'ENTITY' },
+    property: { color: '#10b981', glow: '#34d399', radius: 13, icon: '⚙️', label: 'MECHANISM' }
+  };
+
+  // Edge Category Colors
+  const EDGE_COLORS = {
+    causal: '#f43f5e',      // Rose
+    dependency: '#f59e0b',  // Amber
+    functional: '#6366f1',  // Indigo
+    definitional: '#06b6d4',// Cyan
+    structural: '#10b981',  // Emerald
+    default: '#818cf8'
+  };
+
+  // Initialize Nodes
+  const nodes = graphData.nodes.map((n, i) => {
+    const angle = (i / graphData.nodes.length) * Math.PI * 2;
+    const cfg = GROUP_CONFIG[n.group] || GROUP_CONFIG.entity;
+    const dist = n.group === 'core' ? 0 : (n.group === 'cluster' ? 130 : (n.group === 'entity' ? 210 : 280));
+    return {
+      ...n,
+      x: width / 2 + Math.cos(angle) * dist + (Math.random() - 0.5) * 40,
+      y: height / 2 + Math.sin(angle) * dist + (Math.random() - 0.5) * 40,
+      vx: 0,
+      vy: 0,
+      radius: n.val ? Math.max(12, Math.min(32, n.val)) : cfg.radius,
+      color: cfg.color,
+      glow: cfg.glow,
+      icon: n.icon || cfg.icon
+    };
+  });
+
+  const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const edges = graphData.edges.map((e, idx) => {
+    const sourceNode = nodeMap[e.source] || nodeMap[e.source.toLowerCase()];
+    const targetNode = nodeMap[e.target] || nodeMap[e.target.toLowerCase()];
+    const curveOffset = ((idx % 2 === 0 ? 1 : -1) * (18 + (idx % 3) * 6));
+    const edgeColor = EDGE_COLORS[e.category] || e.color || EDGE_COLORS.default;
+    return {
+      ...e,
+      sourceNode,
+      targetNode,
+      color: edgeColor,
+      curveOffset,
+      particleProgress: Math.random()
+    };
+  }).filter(e => e.sourceNode && e.targetNode);
+
+  // Adjacency Map for Multi-hop Neighborhood Lookups
+  const adjacency = new Map();
+  nodes.forEach(n => adjacency.set(n, new Set()));
+  edges.forEach(e => {
+    adjacency.get(e.sourceNode)?.add(e.targetNode);
+    adjacency.get(e.targetNode)?.add(e.sourceNode);
+  });
+
+  // Viewport Camera State
+  let transform = { x: 0, y: 0, scale: 1.0 };
+  let isDraggingCanvas = false;
+  let dragStart = { x: 0, y: 0 };
+  let draggedNode = null;
+  let selectedNode = nodes[0] || null;
+  let hoveredNode = null;
+  let filterQuery = '';
+
+  // Layout Algorithms
+  const applyLayout = (mode) => {
+    currentLayout = mode;
+    const cx = width / 2;
+    const cy = height / 2;
+
+    if (mode === 'radial') {
+      const coreNode = nodes.find(n => n.group === 'core') || nodes[0];
+      coreNode.x = cx;
+      coreNode.y = cy;
+
+      const nonCore = nodes.filter(n => n !== coreNode);
+      const clusters = nonCore.filter(n => n.group === 'cluster');
+      const others = nonCore.filter(n => n.group !== 'cluster');
+
+      clusters.forEach((c, idx) => {
+        const a = (idx / Math.max(1, clusters.length)) * Math.PI * 2;
+        c.x = cx + Math.cos(a) * 150;
+        c.y = cy + Math.sin(a) * 150;
+      });
+
+      others.forEach((o, idx) => {
+        const a = (idx / Math.max(1, others.length)) * Math.PI * 2;
+        o.x = cx + Math.cos(a) * 270;
+        o.y = cy + Math.sin(a) * 270;
+      });
+    } else if (mode === 'orbital') {
+      nodes.forEach((n, idx) => {
+        const ring = n.group === 'core' ? 0 : (n.group === 'cluster' ? 130 : (n.group === 'entity' ? 220 : 300));
+        const a = (idx / nodes.length) * Math.PI * 2;
+        n.x = cx + Math.cos(a) * ring;
+        n.y = cy + Math.sin(a) * ring;
+      });
+    }
+  };
+
+  // Physics Simulation
+  const simulate = () => {
+    if (!isPhysicsRunning && currentLayout !== 'force') return;
+
+    // Center Gravity
+    nodes.forEach(n => {
+      if (n === draggedNode) return;
+      const dx = width / 2 - n.x;
+      const dy = height / 2 - n.y;
+      n.vx += dx * 0.00035;
+      n.vy += dy * 0.00035;
+    });
+
+    // Node-Node Repulsion
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const minSpace = a.radius + b.radius + 65;
+        if (dist < minSpace) {
+          const force = (minSpace - dist) / minSpace * 0.45;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          if (a !== draggedNode) { a.vx -= fx; a.vy -= fy; }
+          if (b !== draggedNode) { b.vx += fx; b.vy += fy; }
+        }
+      }
+    }
+
+    // Edge Tension
+    edges.forEach(e => {
+      const a = e.sourceNode;
+      const b = e.targetNode;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const targetDist = 135;
+      const force = (dist - targetDist) * 0.018;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      if (a !== draggedNode) { a.vx += fx; a.vy += fy; }
+      if (b !== draggedNode) { b.vx += fx; b.vy += fy; }
+    });
+
+    // Velocity Damping
+    nodes.forEach(n => {
+      if (n === draggedNode) return;
+      n.vx *= 0.88;
+      n.vy *= 0.88;
+      n.x += n.vx;
+      n.y += n.vy;
+    });
+  };
+
+  // Calculate Quadratic Bezier Control Point
+  const getControlPoint = (a, b, offset) => {
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    return {
+      x: mx + nx * offset,
+      y: my + ny * offset
+    };
+  };
+
+  // Evaluate Quadratic Point at t
+  const getBezierPoint = (p0, p1, p2, t) => {
+    const inv = 1 - t;
+    return {
+      x: inv * inv * p0.x + 2 * inv * t * p1.x + t * t * p2.x,
+      y: inv * inv * p0.y + 2 * inv * t * p1.y + t * t * p2.y
+    };
+  };
+
+  // Draw Mini-Map Radar
+  const drawMinimap = () => {
+    if (!miniCtx || !minimapCanvas) return;
+    const mw = minimapCanvas.width;
+    const mh = minimapCanvas.height;
+    miniCtx.clearRect(0, 0, mw, mh);
+
+    if (nodes.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    nodes.forEach(n => {
+      if (n.x < minX) minX = n.x;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.y > maxY) maxY = n.y;
+    });
+
+    const pad = 120;
+    const boxW = Math.max(100, maxX - minX + pad * 2);
+    const boxH = Math.max(100, maxY - minY + pad * 2);
+    const scale = Math.min(mw / boxW, mh / boxH);
+    const offsetX = (mw - boxW * scale) / 2 - (minX - pad) * scale;
+    const offsetY = (mh - boxH * scale) / 2 - (minY - pad) * scale;
+
+    // Draw Edges
+    miniCtx.lineWidth = 0.5;
+    miniCtx.strokeStyle = 'rgba(99, 102, 241, 0.25)';
+    edges.forEach(e => {
+      miniCtx.beginPath();
+      miniCtx.moveTo(e.sourceNode.x * scale + offsetX, e.sourceNode.y * scale + offsetY);
+      miniCtx.lineTo(e.targetNode.x * scale + offsetX, e.targetNode.y * scale + offsetY);
+      miniCtx.stroke();
+    });
+
+    // Draw Nodes
+    nodes.forEach(n => {
+      miniCtx.beginPath();
+      miniCtx.arc(n.x * scale + offsetX, n.y * scale + offsetY, n === selectedNode ? 3.5 : 2, 0, Math.PI * 2);
+      miniCtx.fillStyle = n.color || '#6366f1';
+      miniCtx.fill();
+    });
+
+    // Draw Viewport Camera Box
+    const viewLeft = (-transform.x / transform.scale) * scale + offsetX;
+    const viewTop = (-transform.y / transform.scale) * scale + offsetY;
+    const viewW = (width / transform.scale) * scale;
+    const viewH = (height / transform.scale) * scale;
+
+    miniCtx.strokeStyle = '#38bdf8';
+    miniCtx.lineWidth = 1.2;
+    miniCtx.strokeRect(viewLeft, viewTop, viewW, viewH);
+    miniCtx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+    miniCtx.fillRect(viewLeft, viewTop, viewW, viewH);
+
+    // Update Scale Text
+    const scaleTxt = document.getElementById('minimap-scale-txt');
+    if (scaleTxt) scaleTxt.textContent = `${transform.scale.toFixed(1)}x`;
+  };
+
+  // Main Render Loop
+  const draw = () => {
+    simulate();
+
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+
+    // Apply Viewport Camera
+    ctx.translate(transform.x, transform.y);
+    ctx.scale(transform.scale, transform.scale);
+
+    // Draw Subtle Futuristic Grid
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 1;
+    const gridSize = 45;
+    const startX = -transform.x / transform.scale - 250;
+    const endX = (width - transform.x) / transform.scale + 250;
+    const startY = -transform.y / transform.scale - 250;
+    const endY = (height - transform.y) / transform.scale + 250;
+
+    for (let gx = Math.floor(startX / gridSize) * gridSize; gx < endX; gx += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(gx, startY);
+      ctx.lineTo(gx, endY);
+      ctx.stroke();
+    }
+    for (let gy = Math.floor(startY / gridSize) * gridSize; gy < endY; gy += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(startX, gy);
+      ctx.lineTo(endX, gy);
+      ctx.stroke();
+    }
+
+    // Determine Active Focus Set
+    const activeNode = hoveredNode || selectedNode;
+    let focusSet = null;
+
+    if (neighborhoodFocus > 0 && activeNode) {
+      focusSet = new Set([activeNode]);
+      const hop1 = adjacency.get(activeNode) || new Set();
+      hop1.forEach(n => focusSet.add(n));
+
+      if (neighborhoodFocus >= 2) {
+        hop1.forEach(n => {
+          (adjacency.get(n) || new Set()).forEach(n2 => focusSet.add(n2));
+        });
+      }
+    }
+
+    // 1. Draw Curved Edges with Bezier & Flow Particles
+    edges.forEach(e => {
+      const a = e.sourceNode;
+      const b = e.targetNode;
+
+      // Check Category Filter
+      const aAllowed = activeGroupFilter === 'all' || a.group === activeGroupFilter;
+      const bAllowed = activeGroupFilter === 'all' || b.group === activeGroupFilter;
+      const matchesFilter = aAllowed && bAllowed;
+
+      // Check Focus Mode
+      const isFocused = !focusSet || (focusSet.has(a) && focusSet.has(b));
+      const isNeighbor = !activeNode || (a === activeNode || b === activeNode);
+      const isDimmed = !matchesFilter || (!isFocused && neighborhoodFocus > 0);
+
+      const edgeAlpha = isDimmed ? 0.06 : (isNeighbor ? 0.9 : 0.4);
+      const ctrl = getControlPoint(a, b, e.curveOffset);
+
+      // Draw Quadratic Curve
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.quadraticCurveTo(ctrl.x, ctrl.y, b.x, b.y);
+      ctx.strokeStyle = e.color ? `${e.color}${Math.floor(edgeAlpha * 255).toString(16).padStart(2, '0')}` : `rgba(99, 102, 241, ${edgeAlpha})`;
+      ctx.lineWidth = isNeighbor ? 2.5 : 1.2;
+      ctx.stroke();
+
+      // Flowing Directional Pulse Particle
+      if (!isDimmed) {
+        e.particleProgress = (e.particleProgress + 0.009) % 1.0;
+        const pt = getBezierPoint(a, ctrl, b, e.particleProgress);
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, isNeighbor ? 3.2 : 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = isNeighbor ? '#ffffff' : e.color;
+        ctx.shadowColor = e.color;
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Edge Semantic Label along Curve
+      if (e.label && transform.scale > 0.8 && (!isDimmed && (isNeighbor || transform.scale > 1.2))) {
+        const midPt = getBezierPoint(a, ctrl, b, 0.5);
+        ctx.save();
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(e.label, midPt.x, midPt.y - 6);
+        ctx.restore();
+      }
+    });
+
+    // 2. Draw Nodes
+    nodes.forEach(n => {
+      const isMatchedSearch = !filterQuery || n.label.toLowerCase().includes(filterQuery);
+      const isGroupAllowed = activeGroupFilter === 'all' || n.group === activeGroupFilter;
+      const isFocused = !focusSet || focusSet.has(n);
+      const isSelected = selectedNode === n;
+      const isHovered = hoveredNode === n;
+
+      const isDimmed = !isMatchedSearch || !isGroupAllowed || (!isFocused && neighborhoodFocus > 0);
+      const nodeAlpha = isDimmed ? 0.12 : 1.0;
+
+      ctx.save();
+      ctx.globalAlpha = nodeAlpha;
+
+      // Outer Aura Glow
+      if (isSelected || isHovered || n.group === 'core') {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.radius + (isSelected ? 8 : 5), 0, Math.PI * 2);
+        ctx.fillStyle = n.glow ? `${n.glow}33` : 'rgba(99, 102, 241, 0.25)';
+        ctx.fill();
+      }
+
+      // Main Node Body
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+      ctx.fillStyle = n.color;
+      ctx.fill();
+
+      // Border Ring
+      ctx.lineWidth = isSelected ? 3.5 : (isHovered ? 2.5 : 1.5);
+      ctx.strokeStyle = isSelected ? '#ffffff' : (isHovered ? '#e2e8f0' : 'rgba(255, 255, 255, 0.45)');
+      ctx.stroke();
+
+      // Emoji Icon inside Node
+      if (n.icon && n.radius >= 14) {
+        ctx.font = `${Math.floor(n.radius * 0.68)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(n.icon, n.x, n.y);
+      }
+
+      // Label below Node
+      ctx.fillStyle = isSelected ? '#ffffff' : (isDimmed ? '#475569' : '#e2e8f0');
+      ctx.font = `${n.group === 'core' ? 'bold 12px' : 'bold 10px'} sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(n.label, n.x, n.y + n.radius + 6);
+
+      ctx.restore();
+    });
+
+    ctx.restore();
+
+    // Render Minimap
+    drawMinimap();
+
+    requestAnimationFrame(draw);
+  };
+
+  requestAnimationFrame(draw);
+
+  // Update Side Inspector Drawer
+  const updateInspector = (node) => {
+    if (!node) return;
+    document.getElementById('inspector-title').textContent = node.label;
+    document.getElementById('inspector-icon').textContent = node.icon || '📌';
+    document.getElementById('inspector-desc').textContent = node.desc || 'Key academic concept extracted from lecture material.';
+    
+    const cfg = GROUP_CONFIG[node.group] || GROUP_CONFIG.entity;
+    const badgeEl = document.getElementById('inspector-group-badge');
+    badgeEl.textContent = cfg.label;
+    badgeEl.style.backgroundColor = `${node.color}22`;
+    badgeEl.style.color = node.color;
+
+    // Importance & Connectivity
+    const connected = edges.filter(e => e.sourceNode === node || e.targetNode === node);
+    document.getElementById('inspector-connectivity-badge').textContent = `${connected.length} relationship${connected.length !== 1 ? 's' : ''}`;
+    document.getElementById('inspector-importance-badge').textContent = `⭐ ${node.importance || (1.0 + connected.length * 0.2).toFixed(1)} Score`;
+    document.getElementById('inspector-conn-count').textContent = connected.length;
+
+    // Source Quote Snippet
+    const quoteBox = document.getElementById('inspector-quote-box');
+    const quoteText = document.getElementById('inspector-quote-text');
+    if (node.quote && node.quote.trim()) {
+      quoteText.textContent = `"${node.quote.trim()}"`;
+      quoteBox.classList.remove('hidden');
+    } else {
+      quoteBox.classList.add('hidden');
+    }
+
+    // Connected Relationships List
+    const listEl = document.getElementById('inspector-connections-list');
+    listEl.innerHTML = '';
+    if (connected.length === 0) {
+      listEl.innerHTML = '<li class="italic text-slate-400 p-2">Central root entity</li>';
+    } else {
+      connected.forEach(e => {
+        const isOutgoing = e.sourceNode === node;
+        const other = isOutgoing ? e.targetNode : e.sourceNode;
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between rounded-xl bg-slate-50 p-2.5 border border-slate-100 transition hover:bg-indigo-50/50 cursor-pointer';
+        li.innerHTML = `
+          <div class="flex items-center gap-1.5 min-w-0 pr-1">
+            <span class="text-xs">${other.icon || '🔹'}</span>
+            <span class="font-bold text-indigo-950 truncate">${other.label}</span>
+          </div>
+          <span class="text-[9px] badge font-bold shrink-0" style="background-color: ${e.color}18; color: ${e.color};">
+            ${isOutgoing ? '→ ' + e.label : '← ' + e.label}
+          </span>
+        `;
+        li.addEventListener('click', () => {
+          selectedNode = other;
+          updateInspector(other);
+        });
+        listEl.appendChild(li);
+      });
+    }
+
+    // Direct Note Link with Search Query
+    const jumpLink = document.getElementById('btn-jump-note');
+    if (jumpLink) {
+      jumpLink.href = `{{ url_for('document_detail', document_id=document.id) }}#${encodeURIComponent(node.label)}`;
+    }
+  };
+
+  if (selectedNode) updateInspector(selectedNode);
+
+  // Mouse Coordinate Helpers
+  const getMousePos = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.clientX - rect.left;
+    const clientY = e.clientY - rect.top;
+    return {
+      x: (clientX - transform.x) / transform.scale,
+      y: (clientY - transform.y) / transform.scale,
+      rawX: clientX,
+      rawY: clientY
+    };
+  };
+
+  const findNodeAt = (pos) => {
+    return nodes.find(n => Math.hypot(n.x - pos.x, n.y - pos.y) <= n.radius + 6);
+  };
+
+  canvas.addEventListener('mousedown', (e) => {
+    const pos = getMousePos(e);
+    const hit = findNodeAt(pos);
+    if (hit) {
+      draggedNode = hit;
+      selectedNode = hit;
+      updateInspector(hit);
+    } else {
+      isDraggingCanvas = true;
+      dragStart = { x: pos.rawX - transform.x, y: pos.rawY - transform.y };
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const pos = getMousePos(e);
+    if (draggedNode) {
+      draggedNode.x = pos.x;
+      draggedNode.y = pos.y;
+      draggedNode.vx = 0;
+      draggedNode.vy = 0;
+    } else if (isDraggingCanvas) {
+      transform.x = pos.rawX - dragStart.x;
+      transform.y = pos.rawY - dragStart.y;
+    } else {
+      hoveredNode = findNodeAt(pos);
+      canvas.style.cursor = hoveredNode ? 'pointer' : (isDraggingCanvas ? 'grabbing' : 'grab');
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    draggedNode = null;
+    isDraggingCanvas = false;
+  });
+
+  // Wheel Zoom
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
+    transform.scale = Math.min(3.5, Math.max(0.25, transform.scale * zoomFactor));
+  });
+
+  // Minimap Click Navigation
+  if (minimapCanvas) {
+    minimapCanvas.addEventListener('mousedown', (e) => {
+      const rect = minimapCanvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      nodes.forEach(n => {
+        if (n.x < minX) minX = n.x;
+        if (n.x > maxX) maxX = n.x;
+        if (n.y < minY) minY = n.y;
+        if (n.y > maxY) maxY = n.y;
+      });
+      const pad = 120;
+      const boxW = Math.max(100, maxX - minX + pad * 2);
+      const boxH = Math.max(100, maxY - minY + pad * 2);
+      const scale = Math.min(minimapCanvas.width / boxW, minimapCanvas.height / boxH);
+      const offsetX = (minimapCanvas.width - boxW * scale) / 2 - (minX - pad) * scale;
+      const offsetY = (minimapCanvas.height - boxH * scale) / 2 - (minY - pad) * scale;
+
+      const worldX = (mx - offsetX) / scale;
+      const worldY = (my - offsetY) / scale;
+
+      transform.x = width / 2 - worldX * transform.scale;
+      transform.y = height / 2 - worldY * transform.scale;
+    });
+  }
+
+  // Toolbar Viewport Controls
+  document.getElementById('btn-zoom-in')?.addEventListener('click', () => { transform.scale = Math.min(3.5, transform.scale * 1.25); });
+  document.getElementById('btn-zoom-out')?.addEventListener('click', () => { transform.scale = Math.max(0.25, transform.scale * 0.8); });
+  document.getElementById('btn-zoom-reset')?.addEventListener('click', () => { transform = { x: 0, y: 0, scale: 1.0 }; });
+  
+  document.getElementById('btn-fit-screen')?.addEventListener('click', () => {
+    if (nodes.length === 0) return;
+    const minX = Math.min(...nodes.map(n => n.x));
+    const maxX = Math.max(...nodes.map(n => n.x));
+    const minY = Math.min(...nodes.map(n => n.y));
+    const maxY = Math.max(...nodes.map(n => n.y));
+    const graphW = Math.max(100, maxX - minX + 140);
+    const graphH = Math.max(100, maxY - minY + 140);
+    const scale = Math.min(2.0, Math.min(width / graphW, height / graphH) * 0.85);
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
+    transform = {
+      scale: scale,
+      x: width / 2 - midX * scale,
+      y: height / 2 - midY * scale
+    };
+  });
+
+  // Freeze / Resume Physics Toggle
+  const btnPhysics = document.getElementById('btn-toggle-physics');
+  if (btnPhysics) {
+    btnPhysics.addEventListener('click', () => {
+      isPhysicsRunning = !isPhysicsRunning;
+      btnPhysics.textContent = isPhysicsRunning ? '⏸ Freeze' : '▶ Simulate';
+      btnPhysics.classList.toggle('text-indigo-400', !isPhysicsRunning);
+    });
+  }
+
+  // Neighborhood Focus Mode Toggle (Off -> 1st-Hop -> 2nd-Hop)
+  const btnFocus = document.getElementById('btn-focus-mode');
+  const focusLabel = document.getElementById('focus-mode-label');
+  if (btnFocus && focusLabel) {
+    btnFocus.addEventListener('click', () => {
+      neighborhoodFocus = (neighborhoodFocus + 1) % 3;
+      if (neighborhoodFocus === 0) {
+        focusLabel.textContent = 'Focus: Off';
+        btnFocus.classList.remove('border-indigo-400', 'bg-indigo-50', 'text-indigo-700');
+      } else if (neighborhoodFocus === 1) {
+        focusLabel.textContent = 'Focus: 1st-Hop';
+        btnFocus.classList.add('border-indigo-400', 'bg-indigo-50', 'text-indigo-700');
+      } else {
+        focusLabel.textContent = 'Focus: 2nd-Hop';
+        btnFocus.classList.add('border-indigo-400', 'bg-indigo-50', 'text-indigo-700');
+      }
+    });
+  }
+
+  // Category Cluster Filter Pills
+  document.querySelectorAll('.group-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.group-filter-btn').forEach(b => {
+        b.classList.remove('bg-white', 'text-indigo-700', 'shadow-xs');
+        b.classList.add('text-slate-600');
+      });
+      btn.classList.add('bg-white', 'text-indigo-700', 'shadow-xs');
+      btn.classList.remove('text-slate-600');
+      activeGroupFilter = btn.getAttribute('data-filter');
+    });
+  });
+
+  // Layout Switcher Buttons
+  document.querySelectorAll('.layout-switch-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.layout-switch-btn').forEach(b => {
+        b.classList.remove('bg-white', 'text-indigo-700', 'shadow-xs');
+        b.classList.add('text-slate-600');
+      });
+      btn.classList.add('bg-white', 'text-indigo-700', 'shadow-xs');
+      btn.classList.remove('text-slate-600');
+      const mode = btn.getAttribute('data-layout');
+      applyLayout(mode);
+    });
+  });
+
+  // Live Search Filter
+  const searchInput = document.getElementById('graph-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      filterQuery = e.target.value.trim().toLowerCase();
+      if (filterQuery) {
+        const match = nodes.find(n => n.label.toLowerCase().includes(filterQuery));
+        if (match) {
+          selectedNode = match;
+          updateInspector(match);
+        }
+      }
+    });
+  }
+
+  // Export High-Res PNG
+  document.getElementById('btn-export-graph')?.addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = `concept-mindmap-{{ document.id }}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+omnistudy.db
+uploads/
+omnistudy-server.log
+omnistudy-server.error.log
+.env
+*.docx
