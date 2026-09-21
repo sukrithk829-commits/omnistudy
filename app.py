@@ -241,8 +241,27 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id),
             FOREIGN KEY(document_id) REFERENCES documents(id)
         );
+        CREATE TABLE IF NOT EXISTS profile_update_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            current_name TEXT NOT NULL,
+            new_name TEXT NOT NULL,
+            current_reg_no TEXT NOT NULL DEFAULT '',
+            new_reg_no TEXT NOT NULL DEFAULT '',
+            current_department TEXT NOT NULL,
+            new_department TEXT NOT NULL,
+            current_semester TEXT NOT NULL,
+            new_semester TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+            admin_id INTEGER,
+            created_at TEXT NOT NULL,
+            reviewed_at TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id),
+            FOREIGN KEY(admin_id) REFERENCES users(id)
+        );
         """
     )
+    ensure_column(db, "users", "reg_no TEXT DEFAULT ''")
     ensure_column(db, "users", "password_hash TEXT")
     ensure_column(db, "users", "is_verified INTEGER NOT NULL DEFAULT 1")
     ensure_column(db, "users", "graduation_status TEXT NOT NULL DEFAULT 'active'")
@@ -252,14 +271,15 @@ def init_db():
     ensure_column(db, "documents", "access_mode TEXT NOT NULL DEFAULT 'all'")
     if not db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
         demo_users = [
-            ("Asha Professor", "staff@omnistudy.test", "staff123", "staff", "Computer Science", "All"),
-            ("Ravi Student", "student@omnistudy.test", "student123", "student", "Computer Science", "6"),
-            ("System Admin", "admin@omnistudy.test", "admin123", "admin", "Administration", "All"),
+            ("Asha Professor", "staff@omnistudy.test", "staff123", "staff", "Computer Science", "All", ""),
+            ("Ravi Student", "student@omnistudy.test", "student123", "student", "Computer Science", "6", "22BCA101"),
+            ("System Admin", "admin@omnistudy.test", "admin123", "admin", "Administration", "All", ""),
         ]
         db.executemany(
-            "INSERT INTO users (name, email, password, password_hash, role, department, semester, last_login) VALUES (?, ?, '', ?, ?, ?, ?, ?)",
-            [(name, email, generate_password_hash(password), role, department, semester, now_iso()) for name, email, password, role, department, semester in demo_users],
+            "INSERT INTO users (name, email, password, password_hash, role, department, semester, last_login, reg_no) VALUES (?, ?, '', ?, ?, ?, ?, ?, ?)",
+            [(name, email, generate_password_hash(password), role, department, semester, now_iso(), reg_no) for name, email, password, role, department, semester, reg_no in demo_users],
         )
+    db.execute("UPDATE users SET reg_no = '22BCA101' WHERE email = 'student@omnistudy.test' AND (reg_no IS NULL OR reg_no = '')")
     for user in db.execute("SELECT id, password, password_hash FROM users WHERE password_hash IS NULL OR password_hash = ''"):
         db.execute("UPDATE users SET password_hash = ?, password = '' WHERE id = ?", (generate_password_hash(user["password"]), user["id"]))
     db.executemany(
@@ -1546,6 +1566,7 @@ def register():
         return redirect(url_for("dashboard"))
     if request.method == "POST":
         name = request.form["name"].strip()
+        reg_no = request.form.get("reg_no", "").strip()
         email = request.form["email"].strip().lower()
         password = request.form["password"]
         role = request.form["role"]
@@ -1555,8 +1576,8 @@ def register():
             try:
                 db = get_db()
                 cursor = db.execute(
-                    "INSERT INTO users (name, email, password, password_hash, role, department, semester, last_login, is_verified) VALUES (?, ?, '', ?, ?, ?, ?, ?, 0)",
-                    (name, email, generate_password_hash(password), role, request.form["department"].strip(), request.form["semester"].strip(), now_iso()),
+                    "INSERT INTO users (name, reg_no, email, password, password_hash, role, department, semester, last_login, is_verified) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 0)",
+                    (name, reg_no, email, generate_password_hash(password), role, request.form["department"].strip(), request.form["semester"].strip(), now_iso()),
                 )
                 db.execute("INSERT INTO activity_logs (user_id, event_type, detail, created_at) VALUES (?, 'registration', 'Verification requested', ?)", (cursor.lastrowid, now_iso()))
                 db.commit()
@@ -1708,8 +1729,13 @@ def dashboard():
     staff_learners = []
     staff_gaps = []
     staff_distribution = {"A": 0, "B": 0, "C": 0, "D": 0, "total": 0}
+    pending_profile_request = None
 
     if g.user["role"] == "student":
+        pending_profile_request = db.execute(
+            "SELECT * FROM profile_update_requests WHERE user_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+            (g.user["id"],)
+        ).fetchone()
         overall_performance = learner_performance(g.user["id"])
         attempts_count = db.execute("SELECT COUNT(*) FROM quiz_attempts WHERE user_id = ?", (g.user["id"],)).fetchone()[0]
         perfect_count = db.execute("SELECT COUNT(*) FROM quiz_attempts WHERE user_id = ? AND score = total AND total > 0", (g.user["id"],)).fetchone()[0]
@@ -1793,6 +1819,7 @@ def dashboard():
         staff_learners=staff_learners,
         staff_gaps=staff_gaps,
         staff_distribution=staff_distribution,
+        pending_profile_request=pending_profile_request,
     )
 
 
@@ -2917,7 +2944,10 @@ def admin():
             released = run_inactivity_watchdog()
             flash(f"Settings saved. Watchdog completed: {released} deferred documents released.", "success")
     settings = dict(db.execute("SELECT setting_key, setting_value FROM system_settings"))
-    users = db.execute("SELECT id, name, email, role, last_login, is_verified, graduation_status FROM users ORDER BY is_verified, last_login DESC").fetchall()
+    users = db.execute("SELECT id, name, reg_no, email, role, last_login, is_verified, graduation_status FROM users ORDER BY is_verified, last_login DESC").fetchall()
+    pending_profile_requests = db.execute(
+        "SELECT p.*, u.email as user_email FROM profile_update_requests p JOIN users u ON u.id = p.user_id WHERE p.status = 'pending' ORDER BY p.created_at DESC"
+    ).fetchall()
     events = db.execute(
         "SELECT a.event_type, a.detail, a.created_at, u.name FROM activity_logs a JOIN users u ON u.id = a.user_id ORDER BY a.created_at DESC LIMIT 12"
     ).fetchall()
@@ -2927,7 +2957,7 @@ def admin():
         "Background watchdog": "Running" if scheduler.running else "Starts with server",
         "Stored uploads": stored_uploads_count,
     }
-    return render_template("admin.html", settings=settings, users=users, events=events, health=health)
+    return render_template("admin.html", settings=settings, users=users, pending_profile_requests=pending_profile_requests, events=events, health=health)
 
 
 @app.post("/admin/users/<int:user_id>/verify")
@@ -2959,6 +2989,142 @@ def update_graduation_status(user_id):
     db.commit()
     flash("Student lifecycle status updated.", "success")
     return redirect(url_for("admin"))
+
+
+@app.post("/admin/profile-requests/<int:request_id>/approve")
+@login_required({"admin"})
+def approve_profile_request(request_id):
+    db = get_db()
+    req = db.execute("SELECT * FROM profile_update_requests WHERE id = ?", (request_id,)).fetchone()
+    if not req or req["status"] != "pending":
+        abort(404)
+    db.execute(
+        "UPDATE users SET name = ?, reg_no = ?, department = ?, semester = ? WHERE id = ?",
+        (req["new_name"], req["new_reg_no"], req["new_department"], req["new_semester"], req["user_id"])
+    )
+    db.execute(
+        "UPDATE profile_update_requests SET status = 'approved', admin_id = ?, reviewed_at = ? WHERE id = ?",
+        (g.user["id"], now_iso(), request_id)
+    )
+    db.execute(
+        "INSERT INTO verification_logs (user_id, admin_id, action, created_at) VALUES (?, ?, 'profile_update_approved', ?)",
+        (req["user_id"], g.user["id"], now_iso())
+    )
+    db.execute(
+        "INSERT INTO activity_logs (user_id, event_type, detail, created_at) VALUES (?, 'profile_update', 'Profile changes approved by administrator', ?)",
+        (req["user_id"], now_iso())
+    )
+    db.commit()
+    flash(f"Profile update approved for {req['new_name']}.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.post("/admin/profile-requests/<int:request_id>/reject")
+@login_required({"admin"})
+def reject_profile_request(request_id):
+    db = get_db()
+    req = db.execute("SELECT * FROM profile_update_requests WHERE id = ?", (request_id,)).fetchone()
+    if not req or req["status"] != "pending":
+        abort(404)
+    db.execute(
+        "UPDATE profile_update_requests SET status = 'rejected', admin_id = ?, reviewed_at = ? WHERE id = ?",
+        (g.user["id"], now_iso(), request_id)
+    )
+    db.execute(
+        "INSERT INTO verification_logs (user_id, admin_id, action, created_at) VALUES (?, ?, 'profile_update_rejected', ?)",
+        (req["user_id"], g.user["id"], now_iso())
+    )
+    db.execute(
+        "INSERT INTO activity_logs (user_id, event_type, detail, created_at) VALUES (?, 'profile_update', 'Profile update request rejected by administrator', ?)",
+        (req["user_id"], now_iso())
+    )
+    db.commit()
+    flash("Profile update request rejected.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.route("/profile")
+@login_required()
+def profile():
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (g.user["id"],)).fetchone()
+    pending_request = db.execute(
+        "SELECT * FROM profile_update_requests WHERE user_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+        (g.user["id"],)
+    ).fetchone()
+    past_requests = db.execute(
+        "SELECT * FROM profile_update_requests WHERE user_id = ? AND status != 'pending' ORDER BY created_at DESC LIMIT 5",
+        (g.user["id"],)
+    ).fetchall()
+    return render_template("profile.html", user=user, pending_request=pending_request, past_requests=past_requests)
+
+
+@app.post("/profile/edit")
+@login_required()
+def edit_profile():
+    new_name = request.form.get("name", "").strip()
+    new_reg_no = request.form.get("reg_no", "").strip()
+    new_dept = request.form.get("department", "").strip()
+    new_sem = request.form.get("semester", "").strip()
+
+    if not new_name or not new_dept or not new_sem:
+        flash("Name, department, and semester are required.", "error")
+        return redirect(url_for("profile"))
+
+    db = get_db()
+    current = db.execute("SELECT * FROM users WHERE id = ?", (g.user["id"],)).fetchone()
+    current_reg = current["reg_no"] or ""
+
+    if (new_name == current["name"] and 
+        new_reg_no == current_reg and 
+        new_dept == current["department"] and 
+        new_sem == current["semester"]):
+        flash("No changes detected. Your details are already up to date.", "error")
+        return redirect(url_for("profile"))
+
+    existing = db.execute(
+        "SELECT id FROM profile_update_requests WHERE user_id = ? AND status = 'pending'",
+        (g.user["id"],)
+    ).fetchone()
+
+    if existing:
+        db.execute(
+            """UPDATE profile_update_requests 
+               SET new_name = ?, new_reg_no = ?, new_department = ?, new_semester = ?, created_at = ?
+               WHERE id = ?""",
+            (new_name, new_reg_no, new_dept, new_sem, now_iso(), existing["id"])
+        )
+        flash("Your existing pending profile update request has been updated with the new details.", "success")
+    else:
+        db.execute(
+            """INSERT INTO profile_update_requests 
+               (user_id, current_name, new_name, current_reg_no, new_reg_no, current_department, new_department, current_semester, new_semester, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
+            (g.user["id"], current["name"], new_name, current_reg, new_reg_no, current["department"], new_dept, current["semester"], new_sem, now_iso())
+        )
+        db.execute(
+            "INSERT INTO activity_logs (user_id, event_type, detail, created_at) VALUES (?, 'profile_request', 'Submitted profile edit request for admin approval', ?)",
+            (g.user["id"], now_iso())
+        )
+        flash("Profile update request submitted successfully. It will take effect once approved by an administrator.", "success")
+
+    db.commit()
+    return redirect(url_for("profile"))
+
+
+@app.post("/profile/cancel-request")
+@login_required()
+def cancel_profile_request():
+    db = get_db()
+    existing = db.execute(
+        "SELECT id FROM profile_update_requests WHERE user_id = ? AND status = 'pending'",
+        (g.user["id"],)
+    ).fetchone()
+    if existing:
+        db.execute("DELETE FROM profile_update_requests WHERE id = ?", (existing["id"],))
+        db.commit()
+        flash("Your pending profile update request has been cancelled.", "success")
+    return redirect(url_for("profile"))
 
 
 # ==========================================

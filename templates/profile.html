@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+{% block title %}My Profile · OmniStudy{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-7">
+  <!-- Profile Hero Header -->
+  <section class="surface relative overflow-hidden bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 px-6 py-8 text-white shadow-2xl rounded-3xl sm:px-9 sm:py-10 border border-indigo-700/50">
+    <div class="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-violet-500/30 blur-3xl"></div>
+    <div class="absolute -bottom-20 right-32 h-56 w-56 rounded-full bg-cyan-400/25 blur-3xl"></div>
+    <div class="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-5">
+        <span class="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-indigo-400 to-cyan-400 text-2xl font-black text-slate-950 shadow-lg shadow-cyan-500/20">
+          {{ user.name[:2]|upper }}
+        </span>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold uppercase tracking-wider text-cyan-200 backdrop-blur-md border border-white/20">
+              {{ user.role|title }}
+            </span>
+            {% if user.reg_no %}
+            <span class="inline-flex items-center rounded-full bg-cyan-400/20 px-3 py-0.5 text-xs font-bold text-cyan-300 border border-cyan-400/30">
+              Reg No: {{ user.reg_no }}
+            </span>
+            {% endif %}
+          </div>
+          <h1 class="mt-2 text-2xl font-black text-white sm:text-3xl">{{ user.name }}</h1>
+          <p class="mt-1 text-sm text-indigo-200">{{ user.email }}</p>
+        </div>
+      </div>
+      <a href="{{ url_for('dashboard') }}" class="btn border border-white/30 bg-white/10 text-white hover:bg-white/20 font-bold text-xs sm:text-sm backdrop-blur-md shadow-xs self-start sm:self-auto">
+        ← Back to Dashboard
+      </a>
+    </div>
+  </section>
+
+  <!-- Pending Request Banner (if any) -->
+  {% if pending_request %}
+  <section class="rounded-3xl border border-amber-200 bg-amber-50/90 p-6 shadow-card backdrop-blur">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div class="flex items-start gap-4">
+        <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-100 text-2xl text-amber-700 shadow-sm">
+          ⏳
+        </span>
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-bold text-amber-950">Profile Change Request Pending</h2>
+            <span class="badge bg-amber-200 text-amber-900">Awaiting Admin Approval</span>
+          </div>
+          <p class="mt-1.5 text-sm text-amber-800 leading-relaxed">
+            You submitted a request to update your profile details. An administrator must review and accept this request before the changes take effect in the system.
+          </p>
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('cancel_profile_request') }}" onsubmit="return confirm('Cancel this pending update request?');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <button class="btn border border-amber-300 bg-white text-xs font-bold text-amber-800 hover:bg-amber-100 shadow-xs">
+          Cancel Request
+        </button>
+      </form>
+    </div>
+
+    <!-- Comparison Grid -->
+    <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 rounded-2xl bg-white p-4 border border-amber-200/80 shadow-xs">
+      <div class="border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0 sm:pr-3">
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Full Name</p>
+        <p class="mt-1 text-xs text-slate-500 line-through">{{ pending_request.current_name }}</p>
+        <p class="mt-0.5 text-sm font-bold text-emerald-600">➔ {{ pending_request.new_name }}</p>
+      </div>
+      <div class="border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0 sm:pr-3">
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Register Number</p>
+        <p class="mt-1 text-xs text-slate-500 line-through">{{ pending_request.current_reg_no or 'Not set' }}</p>
+        <p class="mt-0.5 text-sm font-bold text-emerald-600">➔ {{ pending_request.new_reg_no or 'None' }}</p>
+      </div>
+      <div class="border-b sm:border-b-0 sm:border-r border-slate-100 pb-3 sm:pb-0 sm:pr-3">
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Department</p>
+        <p class="mt-1 text-xs text-slate-500 line-through">{{ pending_request.current_department }}</p>
+        <p class="mt-0.5 text-sm font-bold text-emerald-600">➔ {{ pending_request.new_department }}</p>
+      </div>
+      <div>
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Semester</p>
+        <p class="mt-1 text-xs text-slate-500 line-through">Sem {{ pending_request.current_semester }}</p>
+        <p class="mt-0.5 text-sm font-bold text-emerald-600">➔ Sem {{ pending_request.new_semester }}</p>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Profile Details & Edit Grid -->
+  <div class="grid gap-7 lg:grid-cols-3">
+    <!-- Current Official Information (Read-Only) -->
+    <section class="panel lg:col-span-1 space-y-5">
+      <div>
+        <p class="eyebrow">Academic Records</p>
+        <h2 class="mt-1 text-xl font-bold text-ink">Active Profile</h2>
+        <p class="mt-1 text-xs text-slate-500">Currently verified information in institutional records.</p>
+      </div>
+
+      <div class="space-y-3.5 divide-y divide-slate-100 text-sm">
+        <div class="pt-2">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Full Name</p>
+          <p class="mt-1 font-bold text-ink">{{ user.name }}</p>
+        </div>
+        <div class="pt-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Register / Roll Number</p>
+          <p class="mt-1 font-bold {{ 'text-indigo-600' if user.reg_no else 'text-slate-400 italic' }}">
+            {{ user.reg_no or 'Not set' }}
+          </p>
+        </div>
+        <div class="pt-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Institutional Email</p>
+          <p class="mt-1 font-semibold text-slate-700">{{ user.email }}</p>
+          <p class="mt-0.5 text-[11px] text-slate-400">Email is fixed to institutional domain</p>
+        </div>
+        <div class="pt-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Department</p>
+          <p class="mt-1 font-semibold text-slate-700">{{ user.department }}</p>
+        </div>
+        <div class="pt-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Semester</p>
+          <p class="mt-1 font-semibold text-slate-700">Semester {{ user.semester }}</p>
+        </div>
+        <div class="pt-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Account Status</p>
+          <div class="mt-1 flex items-center gap-2">
+            <span class="badge bg-emerald-100 text-emerald-800">Verified</span>
+            <span class="badge bg-indigo-50 text-indigo-700 capitalize">{{ user.graduation_status }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Edit Profile Form -->
+    <section class="panel lg:col-span-2 space-y-6">
+      <div>
+        <p class="eyebrow">Modify Details</p>
+        <h2 class="mt-1 text-xl font-bold text-ink">Request Profile Update</h2>
+        <p class="mt-2 text-sm text-slate-500 leading-relaxed">
+          To maintain institutional integrity, changes to your name, register number, department, or semester require verification by the system administrator.
+        </p>
+      </div>
+
+      <form method="post" action="{{ url_for('edit_profile') }}" class="space-y-4">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+
+        <div>
+          <label class="field-label">Full Name</label>
+          <input required name="name" type="text" value="{{ pending_request.new_name if pending_request else user.name }}" class="field-input" placeholder="e.g. John Doe">
+          <p class="mt-1 text-[11px] text-slate-400">Official student name matching your college register.</p>
+        </div>
+
+        <div>
+          <label class="field-label">Register / Roll Number</label>
+          <input name="reg_no" type="text" value="{{ pending_request.new_reg_no if pending_request else (user.reg_no or '') }}" class="field-input" placeholder="e.g. 22BCA101">
+          <p class="mt-1 text-[11px] text-slate-400">Your college register number or university roll number.</p>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="field-label">Department</label>
+            <input required name="department" type="text" value="{{ pending_request.new_department if pending_request else user.department }}" class="field-input" placeholder="e.g. Computer Science">
+          </div>
+          <div>
+            <label class="field-label">Semester</label>
+            <input required name="semester" type="text" value="{{ pending_request.new_semester if pending_request else user.semester }}" class="field-input" placeholder="e.g. 6">
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs text-indigo-900 leading-relaxed">
+          💡 <strong>How it works:</strong> When you submit this form, a notification is sent to the Administrator dashboard. The administrator reviews the request and approves it, immediately updating your official student record.
+        </div>
+
+        <button type="submit" class="btn-primary w-full sm:w-auto">
+          {% if pending_request %}Update Pending Request →{% else %}Submit Request to Admin →{% endif %}
+        </button>
+      </form>
+
+      <!-- Past Requests History -->
+      {% if past_requests %}
+      <div class="border-t border-slate-100 pt-6">
+        <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Past Profile Requests</h3>
+        <div class="mt-3 space-y-2">
+          {% for r in past_requests %}
+          <div class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-xs">
+            <div>
+              <span class="font-bold text-slate-800">{{ r.new_name }}</span>
+              {% if r.new_reg_no %}<span class="text-slate-500">({{ r.new_reg_no }})</span>{% endif %}
+              <span class="text-slate-400">· {{ r.created_at[:10] }}</span>
+            </div>
+            <span class="badge {{ 'bg-emerald-100 text-emerald-800' if r.status == 'approved' else 'bg-red-100 text-red-800' }}">
+              {{ r.status|title }}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
