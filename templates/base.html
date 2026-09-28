@@ -246,28 +246,335 @@
       .dock-icon { transition: none !important; }
     }
 
-    /* ── Top bar ── */
-    .omnistudy-topbar {
-      position: sticky; top: 0; z-index: 30;
-      background: rgba(255,255,255,0.82);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      border-bottom: 1px solid rgba(0,0,0,0.06);
+    /* ═══════════════════════════════════════════════════════════
+       APPLE LIQUID GLASS FLOATING HEADER
+       Optics & Physics: Refraction, Meniscus Specular Arc, 
+       Internal Caustics, Fresnel Rim, & Volumetric Translucency
+       ═══════════════════════════════════════════════════════════ */
+
+    .liquid-glass-header {
+      position: sticky;
+      top: 14px;
+      z-index: 45;
+      pointer-events: none; /* Let empty space between capsules click-through cleanly */
+      width: 100%;
+      padding: 0 1rem;
+      margin-bottom: 0.5rem;
+    }
+    @media (min-width: 640px) {
+      .liquid-glass-header {
+        padding: 0 1.5rem;
+      }
+    }
+    @media (min-width: 1024px) {
+      .liquid-glass-header {
+        padding: 0 2rem;
+      }
+    }
+
+    .liquid-glass-nav {
+      max-width: 80rem;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    /* ── Liquid Glass Capsule Pill ── */
+    .liquid-glass-capsule {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 14px 6px 8px;
+      border-radius: 9999px;
+      text-decoration: none;
+      pointer-events: auto;
+      isolation: isolate;
+      overflow: hidden;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+
+      /* Liquid Glass Material Composition */
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.85) 0%,
+        rgba(248, 250, 255, 0.64) 50%,
+        rgba(255, 255, 255, 0.80) 100%
+      );
+      backdrop-filter: blur(28px) saturate(220%) brightness(108%) contrast(104%);
+      -webkit-backdrop-filter: blur(28px) saturate(220%) brightness(108%) contrast(104%);
+
+      /* Physics of Light: Fresnel Rim + Specular Inset + Caustic Shadows */
+      box-shadow:
+        /* Outer ambient soft shadow */
+        0 12px 30px -4px rgba(22, 32, 51, 0.10),
+        0 4px 12px -2px rgba(22, 32, 51, 0.05),
+        0 1px 2px 0 rgba(22, 32, 51, 0.03),
+        /* Outer sharp caustic glass border rim */
+        0 0 0 1px rgba(255, 255, 255, 0.85),
+        /* Top specular highlight edge (light hitting convex crest) */
+        inset 0 1.5px 1px 0 #ffffff,
+        /* Lateral grazing-angle reflections (Fresnel reflection) */
+        inset 1.2px 0 1.5px 0 rgba(255, 255, 255, 0.65),
+        inset -1.2px 0 1.5px 0 rgba(255, 255, 255, 0.65),
+        /* Bottom internal caustic reflection */
+        inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.65),
+        /* Volumetric depth glow */
+        inset 0 0 16px 0 rgba(255, 255, 255, 0.35);
+
+      transition:
+        transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
+        box-shadow 240ms cubic-bezier(0.16, 1, 0.3, 1),
+        background 240ms ease;
+    }
+
+    /* ── Lens Surface Gloss Overlay ── */
+    .liquid-glass-capsule::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(
+        115deg,
+        rgba(255, 255, 255, 0.45) 0%,
+        rgba(255, 255, 255, 0.12) 35%,
+        transparent 60%
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* ── Meniscus Specular Highlight (Curved light reflection on liquid crest) ── */
+    .liquid-specular-top {
+      position: absolute;
+      top: 1px;
+      left: 10px;
+      right: 10px;
+      height: 52%;
+      border-radius: 9999px 9999px 50% 50% / 9999px 9999px 25% 25%;
+      background: radial-gradient(
+        ellipse at 50% 0%,
+        rgba(255, 255, 255, 0.98) 0%,
+        rgba(255, 255, 255, 0.72) 25%,
+        rgba(255, 255, 255, 0.18) 60%,
+        transparent 85%
+      );
+      pointer-events: none;
+      z-index: 2;
+      filter: blur(0.2px);
+      transition: opacity 240ms ease, transform 240ms ease;
+    }
+
+    /* ── Internal Caustic Reflection (Bottom liquid refraction) ── */
+    .liquid-caustic-bottom {
+      position: absolute;
+      bottom: 1px;
+      left: 14px;
+      right: 14px;
+      height: 38%;
+      border-radius: 30% 30% 9999px 9999px;
+      background: radial-gradient(
+        ellipse at 50% 100%,
+        rgba(255, 255, 255, 0.65) 0%,
+        rgba(255, 255, 255, 0.25) 45%,
+        transparent 85%
+      );
+      pointer-events: none;
+      z-index: 2;
+      transition: opacity 240ms ease;
+    }
+
+    /* ── Dynamic Light Follower (Simulates interactive physical light source) ── */
+    .liquid-light-follower {
+      position: absolute;
+      top: var(--light-y, 0px);
+      left: var(--light-x, 0px);
+      width: 110px;
+      height: 110px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.55) 0%,
+        rgba(255, 255, 255, 0.18) 35%,
+        transparent 70%
+      );
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 300ms ease;
+      z-index: 3;
+      mix-blend-mode: overlay;
+    }
+
+    .liquid-glass-capsule:hover {
+      transform: translateY(-2.5px) scale(1.02);
+      box-shadow:
+        0 20px 42px -4px rgba(99, 91, 255, 0.22),
+        0 8px 18px -2px rgba(22, 32, 51, 0.12),
+        0 0 0 1px rgba(255, 255, 255, 0.9),
+        inset 0 2px 1.5px 0 rgba(255, 255, 255, 1),
+        inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.7),
+        inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.7),
+        inset 0 -2px 3px 0 rgba(255, 255, 255, 0.7),
+        inset 0 0 20px 0 rgba(255, 255, 255, 0.4);
+    }
+    .liquid-glass-capsule:hover .liquid-light-follower {
+      opacity: 1;
+    }
+    .liquid-glass-capsule:hover .liquid-specular-top {
+      opacity: 1;
+      transform: scaleY(1.08);
+    }
+    .liquid-glass-capsule:active {
+      transform: translateY(0.5px) scale(0.975);
+      transition-duration: 80ms;
+      box-shadow:
+        0 6px 18px -2px rgba(22, 32, 51, 0.14),
+        0 0 0 1px rgba(255, 255, 255, 0.75),
+        inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
+        inset 0 -1px 2px 0 rgba(255, 255, 255, 0.45);
+    }
+
+    /* ── Logo Liquid Gem ── */
+    .liquid-logo-badge {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #3730a3 100%);
+      box-shadow:
+        inset 0 1.5px 1.2px rgba(255, 255, 255, 0.7),
+        inset 0 -1.5px 2px rgba(0, 0, 0, 0.25),
+        0 4px 10px rgba(79, 70, 229, 0.35);
+      transition: transform 240ms ease;
+    }
+    .liquid-glass-capsule:hover .liquid-logo-badge {
+      transform: scale(1.06) rotate(-2deg);
+    }
+
+    /* ── Avatar Liquid Sphere ── */
+    .liquid-avatar-badge {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #ffffff;
+      background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #6366f1 100%);
+      box-shadow:
+        inset 0 1.5px 1.2px rgba(255, 255, 255, 0.75),
+        inset 0 -1.5px 2px rgba(0, 0, 0, 0.2),
+        0 4px 10px rgba(59, 130, 246, 0.35);
+      transition: transform 240ms ease;
+    }
+    .liquid-glass-capsule:hover .liquid-avatar-badge {
+      transform: scale(1.06);
+    }
+
+    /* ── Dark Mode Liquid Obsidian Glass ── */
+    @media (prefers-color-scheme: dark) {
+      .liquid-glass-capsule {
+        background: linear-gradient(
+          135deg,
+          rgba(30, 41, 59, 0.7) 0%,
+          rgba(15, 23, 42, 0.45) 50%,
+          rgba(30, 41, 59, 0.65) 100%
+        );
+        box-shadow:
+          0 14px 34px -4px rgba(0, 0, 0, 0.45),
+          0 6px 14px -2px rgba(0, 0, 0, 0.3),
+          0 0 0 1px rgba(255, 255, 255, 0.22),
+          inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45),
+          inset 1px 0 1px 0 rgba(255, 255, 255, 0.2),
+          inset -1px 0 1px 0 rgba(255, 255, 255, 0.2),
+          inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.18);
+      }
+      .liquid-specular-top {
+        background: radial-gradient(
+          ellipse at 50% 0%,
+          rgba(255, 255, 255, 0.6) 0%,
+          rgba(255, 255, 255, 0.3) 30%,
+          rgba(255, 255, 255, 0.08) 60%,
+          transparent 80%
+        );
+      }
+      .liquid-glass-capsule .liquid-text-primary {
+        color: #f8fafc !important;
+      }
+      .liquid-glass-capsule .liquid-text-secondary {
+        color: #94a3b8 !important;
+      }
+    }
+
+    /* ── Accessibility: Reduced Motion ── */
+    @media (prefers-reduced-motion: reduce) {
+      .liquid-glass-capsule,
+      .liquid-logo-badge,
+      .liquid-avatar-badge,
+      .liquid-light-follower {
+        transition: none !important;
+        transform: none !important;
+      }
     }
   </style>
 </head>
 <body class="min-h-screen">
   {% if g.user %}
-  <!-- ═══ Top Bar ═══ -->
-  <header class="omnistudy-topbar">
-    <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 sm:px-6 lg:px-8">
-      <a href="{{ url_for('dashboard') }}" class="group flex items-center gap-2.5">
-        <span class="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 text-sm font-black text-white shadow-md shadow-indigo-300/40 transition group-hover:scale-105">O</span>
-        <span class="text-sm font-bold tracking-tight text-ink">OmniStudy</span>
+  <!-- ═══ Apple Liquid Glass Floating Header ═══ -->
+  <header class="liquid-glass-header">
+    <nav class="liquid-glass-nav" aria-label="Main Navigation">
+      <!-- 1 · Floating Liquid Glass Home Capsule -->
+      <a href="{{ url_for('dashboard') }}" class="liquid-glass-capsule group" data-liquid-glass title="OmniStudy Home">
+        <!-- Optical Meniscus Specular Arc & Internal Caustics -->
+        <span class="liquid-specular-top" aria-hidden="true"></span>
+        <span class="liquid-caustic-bottom" aria-hidden="true"></span>
+        <span class="liquid-light-follower" aria-hidden="true"></span>
+
+        <!-- Capsule Content -->
+        <div class="relative z-10 flex items-center gap-2.5">
+          <div class="liquid-logo-badge">
+            <span class="text-sm font-black text-white tracking-tight">O</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-bold tracking-tight text-slate-800 liquid-text-primary transition group-hover:text-indigo-600">OmniStudy</span>
+            <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-indigo-50/80 px-2 py-0.5 text-[10.5px] font-bold text-indigo-700 border border-indigo-200/60 shadow-xs">
+              <span class="h-1.5 w-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
+              Home
+            </span>
+          </div>
+        </div>
       </a>
-      <a href="{{ url_for('profile') }}" class="group flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 shadow-sm hover:shadow-card hover:border-indigo-300 transition">
-        <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 text-[10px] font-bold text-white">{{ g.user.name[:2]|upper }}</span>
-        <span class="max-w-28 sm:max-w-40 truncate text-xs font-semibold text-ink group-hover:text-indigo-600 transition">{{ g.user.name }}</span>
+
+      <!-- 2 · Floating Liquid Glass Profile Capsule -->
+      <a href="{{ url_for('profile') }}" class="liquid-glass-capsule group" data-liquid-glass title="User Profile">
+        <!-- Optical Meniscus Specular Arc & Internal Caustics -->
+        <span class="liquid-specular-top" aria-hidden="true"></span>
+        <span class="liquid-caustic-bottom" aria-hidden="true"></span>
+        <span class="liquid-light-follower" aria-hidden="true"></span>
+
+        <!-- Capsule Content -->
+        <div class="relative z-10 flex items-center gap-2.5">
+          <div class="liquid-avatar-badge">
+            {{ g.user.name[:2]|upper }}
+          </div>
+          <div class="flex flex-col text-left">
+            <span class="max-w-28 sm:max-w-44 truncate text-xs font-bold text-slate-800 liquid-text-primary transition group-hover:text-indigo-600 leading-tight">
+              {{ g.user.name }}
+            </span>
+            <span class="text-[9.5px] font-semibold uppercase tracking-wider text-slate-500 liquid-text-secondary capitalize leading-tight">
+              {{ g.user.role }}
+            </span>
+          </div>
+          <svg class="h-3.5 w-3.5 text-slate-400 liquid-text-secondary transition duration-200 group-hover:translate-x-0.5 group-hover:text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
       </a>
     </nav>
   </header>
@@ -491,6 +798,27 @@
 
     /* Initial state */
     resetAll();
+  })();
+
+  /* ═══ Apple Liquid Glass Pointer Light-Tracking ═══ */
+  (function(){
+    var glassCapsules = document.querySelectorAll('[data-liquid-glass]');
+    if (!glassCapsules.length) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    glassCapsules.forEach(function(capsule){
+      capsule.addEventListener('mousemove', function(e){
+        var rect = capsule.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        capsule.style.setProperty('--light-x', x + 'px');
+        capsule.style.setProperty('--light-y', y + 'px');
+      });
+      capsule.addEventListener('mouseleave', function(){
+        capsule.style.removeProperty('--light-x');
+        capsule.style.removeProperty('--light-y');
+      });
+    });
   })();
   </script>
 </body>

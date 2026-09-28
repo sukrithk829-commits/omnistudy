@@ -85,6 +85,7 @@ app.config.update(
     SECRET_KEY=os.environ.get("OMNISTUDY_SECRET_KEY", "change-this-before-production"),
     MAX_CONTENT_LENGTH=10 * 1024 * 1024,
     UPLOAD_FOLDER=UPLOAD_FOLDER,
+    TEMPLATES_AUTO_RELOAD=True,
 )
 scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 
