@@ -50,30 +50,18 @@
   </style>
   <style>
     /* ═══════════════════════════════════════════════════════════
-       macOS DOCK — Pixel-accurate restyling
+       APPLE LIQUID GLASS BOTTOM NAVIGATION DOCK
+       Physics: Convex Meniscus Reflection, Caustics, 
+       Volumetric Translucency & Cosine-Magnification
        ═══════════════════════════════════════════════════════════ */
 
     :root {
-      --dock-bg:       rgba(255,255,255,0.22);
-      --dock-border:   rgba(255,255,255,0.35);
-      --dock-inset:    rgba(255,255,255,0.4);
-      --dock-shadow:   0 10px 30px rgba(0,0,0,0.25);
-      --dock-dot:      rgba(0,0,0,0.6);
-      --dock-divider:  rgba(0,0,0,0.2);
-      --dock-icon-base: 64px;
-      --dock-pad:      8px;
-      --dock-gap:      6px;
-      --dock-radius:   22px;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --dock-bg:      rgba(30,30,30,0.35);
-        --dock-dot:     rgba(255,255,255,0.8);
-        --dock-divider: rgba(255,255,255,0.25);
-      }
+      --dock-icon-base: 60px;
+      --dock-pad:       8px;
+      --dock-gap:       8px;
     }
     @media (max-width: 640px) {
-      :root { --dock-icon-base: 56px; }
+      :root { --dock-icon-base: 52px; --dock-gap: 6px; }
     }
 
     /* ── Wrapper ── */
@@ -84,23 +72,82 @@
       z-index: 50;
       display: flex;
       justify-content: center;
-      padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
+      padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
       pointer-events: none;
     }
 
-    /* ── Shelf (glass container) ── */
+    /* ── Shelf: Floating Liquid Glass Island ── */
     .dock-shelf {
+      position: relative;
       display: flex;
       align-items: flex-end;   /* anchor icons to bottom edge */
-      padding: var(--dock-pad);
-      border-radius: var(--dock-radius);
-      background: var(--dock-bg);
-      backdrop-filter: blur(24px) saturate(180%);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
-      border: 1px solid var(--dock-border);
-      box-shadow: var(--dock-shadow), inset 0 1px 0 var(--dock-inset);
+      padding: var(--dock-pad) calc(var(--dock-pad) + 6px);
+      border-radius: 9999px;   /* True fluid capsule */
+      isolation: isolate;
+      overflow: visible;
+
+      /* Crystalline Liquid Glass Material */
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.88) 0%,
+        rgba(246, 248, 255, 0.58) 50%,
+        rgba(255, 255, 255, 0.84) 100%
+      );
+      backdrop-filter: blur(32px) saturate(220%) brightness(108%) contrast(104%);
+      -webkit-backdrop-filter: blur(32px) saturate(220%) brightness(108%) contrast(104%);
+
+      /* Physics of Light: Fresnel Rim + Specular Inset + Liquid Shadows */
+      box-shadow:
+        0 22px 50px -6px rgba(22, 32, 51, 0.12),
+        0 8px 20px -3px rgba(22, 32, 51, 0.06),
+        0 2px 4px 0 rgba(22, 32, 51, 0.03),
+        0 0 0 1px rgba(255, 255, 255, 0.92),
+        inset 0 1.5px 1.2px 0 #ffffff,
+        inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.7),
+        inset 1.2px 0 1.5px 0 rgba(255, 255, 255, 0.55),
+        inset -1.2px 0 1.5px 0 rgba(255, 255, 255, 0.55),
+        inset 0 0 18px 0 rgba(255, 255, 255, 0.35);
+
       pointer-events: auto;
       will-change: width;
+    }
+
+    /* Shelf Top Specular Meniscus Arc */
+    .dock-shelf-specular {
+      position: absolute;
+      top: 1px;
+      left: 18px;
+      right: 18px;
+      height: 45%;
+      border-radius: 9999px 9999px 50% 50% / 9999px 9999px 25% 25%;
+      background: radial-gradient(
+        ellipse at 50% 0%,
+        rgba(255, 255, 255, 0.98) 0%,
+        rgba(255, 255, 255, 0.65) 25%,
+        rgba(255, 255, 255, 0.15) 55%,
+        transparent 80%
+      );
+      pointer-events: none;
+      z-index: 1;
+      filter: blur(0.3px);
+    }
+
+    /* Shelf Bottom Caustic Reflection */
+    .dock-shelf-caustic {
+      position: absolute;
+      bottom: 1px;
+      left: 24px;
+      right: 24px;
+      height: 35%;
+      border-radius: 30% 30% 9999px 9999px;
+      background: radial-gradient(
+        ellipse at 50% 100%,
+        rgba(255, 255, 255, 0.65) 0%,
+        rgba(255, 255, 255, 0.22) 40%,
+        transparent 80%
+      );
+      pointer-events: none;
+      z-index: 1;
     }
 
     /* ── Each item column ── */
@@ -112,48 +159,76 @@
       cursor: default;
       text-decoration: none;
       -webkit-tap-highlight-color: transparent;
-      /* half the gap on each side => full gap between two items */
       padding: 0 calc(var(--dock-gap) / 2);
+      z-index: 2;
     }
     a.dock-item { cursor: pointer; }
     button.dock-item { background: none; border: none; cursor: pointer; padding: 0 calc(var(--dock-gap) / 2); }
 
-    /* ── Icon tile — squircle, smooth gradient, no hard gloss ── */
+    /* ── Icon Liquid Gem / Optical Lens ── */
     .dock-icon {
       width:  var(--dock-icon-base);
       height: var(--dock-icon-base);
-      /* squircle where supported, else 22.37% radius */
-      border-radius: 22.37%;
-      corner-shape: squircle;
+      border-radius: 20px;
       display: grid;
       place-items: center;
       position: relative;
       flex-shrink: 0;
+      isolation: isolate;
+      overflow: hidden;
+
       /* Spring easing for magnification */
       transition: width 150ms cubic-bezier(0.2,0.8,0.2,1),
-                  height 150ms cubic-bezier(0.2,0.8,0.2,1);
-      /* Smooth gradient: top 8% lighter → base → bottom 8% darker */
-      /* (base gradient color set inline per icon via --ico-from/--ico-to) */
+                  height 150ms cubic-bezier(0.2,0.8,0.2,1),
+                  box-shadow 200ms ease;
+
+      /* Multi-Layered Liquid Glass Optics */
       box-shadow:
-        inset 0  1px 0 rgba(255,255,255,0.35),
-        inset 0  0   0 1px rgba(0,0,0,0.08),
-              0  3px 8px rgba(0,0,0,0.18);
+        0 8px 20px -2px rgba(15, 23, 42, 0.18),
+        0 3px 8px -1px rgba(15, 23, 42, 0.12),
+        0 0 0 1px rgba(255, 255, 255, 0.75),
+        inset 0 1.5px 1px 0 #ffffff,
+        inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.5),
+        inset 1px 0 1.5px 0 rgba(255, 255, 255, 0.4),
+        inset -1px 0 1.5px 0 rgba(255, 255, 255, 0.4),
+        inset 0 0 14px 0 rgba(255, 255, 255, 0.25);
     }
-    /* Per-icon gradient overlay: lighter top, darker bottom */
+
+    /* Meniscus Specular Crescent on Top Edge (Physics of Liquid Surface) */
     .dock-icon::before {
+      content: '';
+      position: absolute;
+      top: 1px;
+      left: 3px;
+      right: 3px;
+      height: 48%;
+      border-radius: 18px 18px 50% 50% / 18px 18px 25% 25%;
+      background: radial-gradient(
+        ellipse at 50% 0%,
+        rgba(255, 255, 255, 0.96) 0%,
+        rgba(255, 255, 255, 0.65) 25%,
+        rgba(255, 255, 255, 0.15) 55%,
+        transparent 80%
+      );
+      pointer-events: none;
+      z-index: 2;
+      filter: blur(0.2px);
+    }
+
+    /* Surface Lens Gloss Sheen */
+    .dock-icon::after {
       content: '';
       position: absolute;
       inset: 0;
       border-radius: inherit;
       background: linear-gradient(
-        to bottom,
-        rgba(255,255,255,0.22) 0%,
-        rgba(255,255,255,0.08) 8%,
-        transparent 45%,
-        rgba(0,0,0,0.06) 92%,
-        rgba(0,0,0,0.14) 100%
+        120deg,
+        rgba(255, 255, 255, 0.45) 0%,
+        rgba(255, 255, 255, 0.12) 32%,
+        transparent 58%
       );
       pointer-events: none;
+      z-index: 2;
     }
 
     /* Glyph sizing & shadow */
@@ -161,60 +236,66 @@
       width:  50%;
       height: 50%;
       color: white;
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+      filter: drop-shadow(0 1.5px 3px rgba(0,0,0,0.3));
       pointer-events: none;
-      position: relative; /* above ::before */
-      z-index: 1;
+      position: relative;
+      z-index: 3;
     }
 
-    /* ── Tooltip pill ── */
+    /* ── Liquid Glass Tooltip Pill ── */
     .dock-label {
       position: absolute;
-      bottom: calc(100% + 8px);
+      bottom: calc(100% + 10px);
       left: 50%;
       transform: translateX(-50%);
       white-space: nowrap;
-      background: rgba(40,40,40,0.85);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      color: #fff;
-      font: 600 13px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      color: #ffffff;
+      font: 700 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       padding: 5px 12px 6px;
-      border-radius: 6px;
+      border-radius: 9999px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.35);
       pointer-events: none;
       opacity: 0;
-      transition: opacity 120ms ease;
+      transition: opacity 140ms ease;
       z-index: 60;
     }
-    /* NO arrow — spec says explicitly none */
 
-    /* ── Active-page dot ── */
+    /* ── Active-page Glowing Liquid Dot ── */
     .dock-dot {
-      width: 4px; height: 4px;
+      width: 5px; height: 5px;
       border-radius: 50%;
-      background: var(--dock-dot);
-      margin-top: 3px;
+      background: #6366f1;
+      box-shadow: 0 0 8px rgba(99, 91, 255, 0.9), 0 0 2px #fff;
+      margin-top: 4px;
       flex-shrink: 0;
     }
     .dock-dot-empty {
-      width: 4px; height: 4px;
-      margin-top: 3px;
+      width: 5px; height: 5px;
+      margin-top: 4px;
       flex-shrink: 0;
     }
 
-    /* ── Divider ── */
+    /* ── Liquid Glass Divider ── */
     .dock-sep {
-      width: 1px;
-      /* 75% of base icon height */
-      height: calc(var(--dock-icon-base) * 0.75);
-      background: var(--dock-divider);
-      margin: 0 6px;
+      width: 1.5px;
+      height: calc(var(--dock-icon-base) * 0.65);
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.2) 0%,
+        rgba(203, 213, 225, 0.75) 50%,
+        rgba(255, 255, 255, 0.2) 100%
+      );
+      margin: 0 8px;
       align-self: center;
       flex-shrink: 0;
-      border-radius: 1px;
+      border-radius: 9999px;
     }
 
-    /* ── Bounce-on-click keyframes (two bounces, decreasing) ── */
+    /* ── Bounce-on-click keyframes ── */
     @keyframes dock-bounce {
       0%   { transform: translateY(0); }
       25%  { transform: translateY(-14px); }
@@ -476,40 +557,13 @@
     .liquid-glass-capsule:hover .liquid-avatar-badge {
       transform: scale(1.06);
     }
-
-    /* ── Dark Mode Liquid Obsidian Glass ── */
-    @media (prefers-color-scheme: dark) {
-      .liquid-glass-capsule {
-        background: linear-gradient(
-          135deg,
-          rgba(30, 41, 59, 0.7) 0%,
-          rgba(15, 23, 42, 0.45) 50%,
-          rgba(30, 41, 59, 0.65) 100%
-        );
-        box-shadow:
-          0 14px 34px -4px rgba(0, 0, 0, 0.45),
-          0 6px 14px -2px rgba(0, 0, 0, 0.3),
-          0 0 0 1px rgba(255, 255, 255, 0.22),
-          inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45),
-          inset 1px 0 1px 0 rgba(255, 255, 255, 0.2),
-          inset -1px 0 1px 0 rgba(255, 255, 255, 0.2),
-          inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.18);
-      }
-      .liquid-specular-top {
-        background: radial-gradient(
-          ellipse at 50% 0%,
-          rgba(255, 255, 255, 0.6) 0%,
-          rgba(255, 255, 255, 0.3) 30%,
-          rgba(255, 255, 255, 0.08) 60%,
-          transparent 80%
-        );
-      }
-      .liquid-glass-capsule .liquid-text-primary {
-        color: #f8fafc !important;
-      }
-      .liquid-glass-capsule .liquid-text-secondary {
-        color: #94a3b8 !important;
-      }
+    .liquid-glass-capsule .liquid-text-primary {
+      color: #0f172a !important;
+      font-weight: 800;
+    }
+    .liquid-glass-capsule .liquid-text-secondary {
+      color: #475569 !important;
+      font-weight: 600;
     }
 
     /* ── Accessibility: Reduced Motion ── */
@@ -579,14 +633,17 @@
     </nav>
   </header>
 
-  <!-- ═══ macOS DOCK ═══ -->
+  <!-- ═══ Apple Liquid Glass Bottom Navigation Dock ═══ -->
   <div class="dock-wrapper" id="dockWrapper">
-    <nav class="dock-shelf" id="dockShelf">
+    <nav class="dock-shelf" id="dockShelf" data-liquid-glass>
+      <!-- Liquid Shelf Meniscus Reflection & Internal Caustics -->
+      <span class="dock-shelf-specular" aria-hidden="true"></span>
+      <span class="dock-shelf-caustic" aria-hidden="true"></span>
 
       <!-- 1 · Dashboard -->
       <a href="{{ url_for('dashboard') }}" class="dock-item" data-dock-item>
         <span class="dock-label">Dashboard</span>
-        <div class="dock-icon" style="background: linear-gradient(135deg, #3b82f6, #4f46e5, #4338ca);">
+        <div class="dock-icon" style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 50%, #2563eb 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
           </svg>
@@ -597,7 +654,7 @@
       <!-- 2 · Library -->
       <a href="{{ url_for('documents') }}" class="dock-item" data-dock-item>
         <span class="dock-label">Library</span>
-        <div class="dock-icon" style="background: linear-gradient(135deg, #14b8a6, #059669, #047857);">
+        <div class="dock-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
           </svg>
@@ -609,7 +666,7 @@
       {% if g.user.role == 'staff' %}
       <a href="{{ url_for('staff_analytics') }}" class="dock-item" data-dock-item>
         <span class="dock-label">Analytics</span>
-        <div class="dock-icon" style="background: linear-gradient(135deg, #06b6d4, #2563eb, #4f46e5);">
+        <div class="dock-icon" style="background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #6366f1 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
           </svg>
@@ -622,7 +679,7 @@
       {% if g.user.role == 'admin' %}
       <a href="{{ url_for('admin') }}" class="dock-item" data-dock-item>
         <span class="dock-label">Admin</span>
-        <div class="dock-icon" style="background: linear-gradient(135deg, #a855f7, #7c3aed, #4c1d95);">
+        <div class="dock-icon" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #4c1d95 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
           </svg>
@@ -637,7 +694,7 @@
       <!-- 5 · Add Material -->
       <a href="{{ url_for('new_document') }}" class="dock-item" data-dock-item>
         <span class="dock-label">Add Material</span>
-        <div class="dock-icon" style="background: linear-gradient(135deg, #f59e0b, #ea580c, #dc2626);">
+        <div class="dock-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #ea580c 50%, #dc2626 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
           </svg>
@@ -648,7 +705,7 @@
       <!-- 6 · Profile -->
       <a href="{{ url_for('profile') }}" class="dock-item" data-dock-item>
         <span class="dock-label">Profile</span>
-        <div class="dock-icon" style="background: linear-gradient(135deg, #ec4899, #db2777, #be185d);">
+        <div class="dock-icon" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #be185d 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
           </svg>
@@ -664,7 +721,7 @@
         <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="dock-item" data-dock-item>
           <span class="dock-label">Sign Out</span>
-          <div class="dock-icon" style="background: linear-gradient(135deg, #64748b, #475569, #334155);">
+          <div class="dock-icon" style="background: linear-gradient(135deg, #64748b 0%, #475569 50%, #334155 100%);">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
               <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
             </svg>
