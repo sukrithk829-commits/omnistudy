@@ -86,68 +86,141 @@
       isolation: isolate;
       overflow: visible;
 
-      /* Crystalline Liquid Glass Material */
+      /* ╔═══════════════════════════════════════════════════╗
+         ║  TRUE LIQUID GLASS: Light Refraction Physics      ║
+         ║  Key: Very low alpha so background content shows  ║
+         ║  through clearly, just like real macOS dock.      ║
+         ║  The blur does the heavy lifting for frosted      ║
+         ║  glass appearance while keeping transparency.     ║
+         ╚═══════════════════════════════════════════════════╝ */
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.88) 0%,
-        rgba(246, 248, 255, 0.58) 50%,
-        rgba(255, 255, 255, 0.84) 100%
+        rgba(255, 255, 255, 0.14) 0%,
+        rgba(240, 244, 255, 0.08) 50%,
+        rgba(255, 255, 255, 0.12) 100%
       );
-      backdrop-filter: blur(32px) saturate(220%) brightness(108%) contrast(104%);
-      -webkit-backdrop-filter: blur(32px) saturate(220%) brightness(108%) contrast(104%);
+      backdrop-filter: blur(40px) saturate(180%) brightness(105%);
+      -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(105%);
 
-      /* Physics of Light: Fresnel Rim + Specular Inset + Liquid Shadows */
+      /* Physics of Light: Thin Fresnel Rim + Subtle Specular */
       box-shadow:
-        0 22px 50px -6px rgba(22, 32, 51, 0.12),
-        0 8px 20px -3px rgba(22, 32, 51, 0.06),
-        0 2px 4px 0 rgba(22, 32, 51, 0.03),
-        0 0 0 1px rgba(255, 255, 255, 0.92),
-        inset 0 1.5px 1.2px 0 #ffffff,
-        inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.7),
-        inset 1.2px 0 1.5px 0 rgba(255, 255, 255, 0.55),
-        inset -1.2px 0 1.5px 0 rgba(255, 255, 255, 0.55),
-        inset 0 0 18px 0 rgba(255, 255, 255, 0.35);
+        /* Ambient shadow for depth separation */
+        0 18px 45px -8px rgba(22, 32, 51, 0.15),
+        0 6px 15px -4px rgba(22, 32, 51, 0.08),
+        /* Outer crisp glass edge — refraction boundary */
+        0 0 0 0.5px rgba(255, 255, 255, 0.45),
+        0 0 0 1px rgba(255, 255, 255, 0.18),
+        /* Top specular edge (light hitting convex crest) */
+        inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.55),
+        /* Lateral Fresnel reflections (grazing angle) */
+        inset 0.8px 0 1px 0 rgba(255, 255, 255, 0.25),
+        inset -0.8px 0 1px 0 rgba(255, 255, 255, 0.25),
+        /* Bottom caustic internal reflection */
+        inset 0 -1px 1.5px 0 rgba(255, 255, 255, 0.22),
+        /* Subtle volumetric glow */
+        inset 0 0 12px 0 rgba(255, 255, 255, 0.08);
 
       pointer-events: auto;
       will-change: width;
     }
 
-    /* Shelf Top Specular Meniscus Arc */
+    /* Shelf Top Specular Meniscus Arc — crisp 1.5px liquid surface reflection */
     .dock-shelf-specular {
       position: absolute;
-      top: 1px;
-      left: 18px;
-      right: 18px;
-      height: 45%;
-      border-radius: 9999px 9999px 50% 50% / 9999px 9999px 25% 25%;
-      background: radial-gradient(
-        ellipse at 50% 0%,
-        rgba(255, 255, 255, 0.98) 0%,
-        rgba(255, 255, 255, 0.65) 25%,
-        rgba(255, 255, 255, 0.15) 55%,
-        transparent 80%
+      top: 0px;
+      left: 20px;
+      right: 20px;
+      height: 1.5px;
+      border-radius: 9999px;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.65) 20%,
+        rgba(255, 255, 255, 0.95) 50%,
+        rgba(255, 255, 255, 0.65) 80%,
+        transparent 100%
       );
       pointer-events: none;
-      z-index: 1;
-      filter: blur(0.3px);
+      z-index: 3;
+      filter: blur(0.2px);
     }
 
-    /* Shelf Bottom Caustic Reflection */
+    /* Shelf Bottom Caustic Reflection — crisp 1px bevel refraction */
     .dock-shelf-caustic {
       position: absolute;
-      bottom: 1px;
+      bottom: 0px;
       left: 24px;
       right: 24px;
-      height: 35%;
-      border-radius: 30% 30% 9999px 9999px;
-      background: radial-gradient(
-        ellipse at 50% 100%,
-        rgba(255, 255, 255, 0.65) 0%,
-        rgba(255, 255, 255, 0.22) 40%,
-        transparent 80%
+      height: 1px;
+      border-radius: 9999px;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 30%,
+        rgba(255, 255, 255, 0.45) 50%,
+        rgba(255, 255, 255, 0.3) 70%,
+        transparent 100%
       );
       pointer-events: none;
+      z-index: 3;
+    }
+
+    /* ── Sliding Active & Hover Pill (Liquid Glass Capsule Halo) ── */
+    .dock-slide-pill {
+      position: absolute;
+      border-radius: 22px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.32) 0%,
+        rgba(238, 242, 255, 0.16) 50%,
+        rgba(255, 255, 255, 0.26) 100%
+      );
+      backdrop-filter: blur(14px) brightness(115%);
+      -webkit-backdrop-filter: blur(14px) brightness(115%);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.45),
+        inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.75),
+        inset 0 -1px 1.5px 0 rgba(255, 255, 255, 0.25),
+        0 8px 24px -2px rgba(99, 91, 255, 0.25);
+      pointer-events: none;
       z-index: 1;
+      opacity: 0;
+      transform: scale(0.92);
+      /* Organic spring-curve transition for sliding navigation */
+      transition:
+        left 400ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        top 400ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        width 400ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        height 400ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 250ms ease;
+    }
+    .dock-slide-pill.active {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* ── Sliding Active Liquid Navigation Bead ── */
+    .dock-slide-bead {
+      position: absolute;
+      bottom: 4px;
+      height: 4px;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, #6366f1, #818cf8);
+      box-shadow:
+        0 0 10px rgba(99, 91, 255, 0.95),
+        0 0 2px #ffffff;
+      pointer-events: none;
+      z-index: 4;
+      opacity: 0;
+      /* Synchronized spring sliding transition */
+      transition:
+        left 420ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        width 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 250ms ease;
+    }
+    .dock-slide-bead.active {
+      opacity: 1;
     }
 
     /* ── Each item column ── */
@@ -182,40 +255,39 @@
                   height 150ms cubic-bezier(0.2,0.8,0.2,1),
                   box-shadow 200ms ease;
 
-      /* Multi-Layered Liquid Glass Optics */
+      /* Subtle Liquid Glass Optics on colored icons */
       box-shadow:
-        0 8px 20px -2px rgba(15, 23, 42, 0.18),
-        0 3px 8px -1px rgba(15, 23, 42, 0.12),
-        0 0 0 1px rgba(255, 255, 255, 0.75),
-        inset 0 1.5px 1px 0 #ffffff,
-        inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.5),
-        inset 1px 0 1.5px 0 rgba(255, 255, 255, 0.4),
-        inset -1px 0 1.5px 0 rgba(255, 255, 255, 0.4),
-        inset 0 0 14px 0 rgba(255, 255, 255, 0.25);
+        0 6px 16px -3px rgba(15, 23, 42, 0.20),
+        0 2px 6px -1px rgba(15, 23, 42, 0.10),
+        0 0 0 0.5px rgba(255, 255, 255, 0.35),
+        inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.45),
+        inset 0 -1px 1.5px 0 rgba(255, 255, 255, 0.20),
+        inset 0.5px 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset -0.5px 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 0 10px 0 rgba(255, 255, 255, 0.10);
     }
 
-    /* Meniscus Specular Crescent on Top Edge (Physics of Liquid Surface) */
+    /* Meniscus Specular Crescent — subtle light on top */
     .dock-icon::before {
       content: '';
       position: absolute;
-      top: 1px;
+      top: 0px;
       left: 3px;
       right: 3px;
-      height: 48%;
+      height: 45%;
       border-radius: 18px 18px 50% 50% / 18px 18px 25% 25%;
       background: radial-gradient(
         ellipse at 50% 0%,
-        rgba(255, 255, 255, 0.96) 0%,
-        rgba(255, 255, 255, 0.65) 25%,
-        rgba(255, 255, 255, 0.15) 55%,
-        transparent 80%
+        rgba(255, 255, 255, 0.40) 0%,
+        rgba(255, 255, 255, 0.15) 30%,
+        transparent 65%
       );
       pointer-events: none;
       z-index: 2;
-      filter: blur(0.2px);
+      filter: blur(0.3px);
     }
 
-    /* Surface Lens Gloss Sheen */
+    /* Surface Lens Gloss Sheen — minimal */
     .dock-icon::after {
       content: '';
       position: absolute;
@@ -223,8 +295,8 @@
       border-radius: inherit;
       background: linear-gradient(
         120deg,
-        rgba(255, 255, 255, 0.45) 0%,
-        rgba(255, 255, 255, 0.12) 32%,
+        rgba(255, 255, 255, 0.18) 0%,
+        rgba(255, 255, 255, 0.05) 32%,
         transparent 58%
       );
       pointer-events: none;
@@ -264,12 +336,11 @@
       z-index: 60;
     }
 
-    /* ── Active-page Glowing Liquid Dot ── */
+    /* ── Active-page Spacer Dot (Visual rendered by .dock-slide-bead) ── */
     .dock-dot {
       width: 5px; height: 5px;
       border-radius: 50%;
-      background: #6366f1;
-      box-shadow: 0 0 8px rgba(99, 91, 255, 0.9), 0 0 2px #fff;
+      background: transparent;
       margin-top: 4px;
       flex-shrink: 0;
     }
@@ -378,33 +449,33 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
 
-      /* Liquid Glass Material Composition */
+      /* Liquid Glass Material — TRUE Transparency */
       background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.85) 0%,
-        rgba(248, 250, 255, 0.64) 50%,
-        rgba(255, 255, 255, 0.80) 100%
+        rgba(255, 255, 255, 0.14) 0%,
+        rgba(248, 250, 255, 0.08) 50%,
+        rgba(255, 255, 255, 0.12) 100%
       );
-      backdrop-filter: blur(28px) saturate(220%) brightness(108%) contrast(104%);
-      -webkit-backdrop-filter: blur(28px) saturate(220%) brightness(108%) contrast(104%);
+      backdrop-filter: blur(36px) saturate(180%) brightness(106%);
+      -webkit-backdrop-filter: blur(36px) saturate(180%) brightness(106%);
 
-      /* Physics of Light: Fresnel Rim + Specular Inset + Caustic Shadows */
+      /* Physics of Light: Thin Fresnel Rim + Subtle Specular */
       box-shadow:
         /* Outer ambient soft shadow */
-        0 12px 30px -4px rgba(22, 32, 51, 0.10),
-        0 4px 12px -2px rgba(22, 32, 51, 0.05),
-        0 1px 2px 0 rgba(22, 32, 51, 0.03),
-        /* Outer sharp caustic glass border rim */
-        0 0 0 1px rgba(255, 255, 255, 0.85),
-        /* Top specular highlight edge (light hitting convex crest) */
-        inset 0 1.5px 1px 0 #ffffff,
-        /* Lateral grazing-angle reflections (Fresnel reflection) */
-        inset 1.2px 0 1.5px 0 rgba(255, 255, 255, 0.65),
-        inset -1.2px 0 1.5px 0 rgba(255, 255, 255, 0.65),
-        /* Bottom internal caustic reflection */
-        inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.65),
-        /* Volumetric depth glow */
-        inset 0 0 16px 0 rgba(255, 255, 255, 0.35);
+        0 10px 25px -5px rgba(22, 32, 51, 0.12),
+        0 4px 10px -3px rgba(22, 32, 51, 0.06),
+        /* Outer crisp glass edge — refraction boundary */
+        0 0 0 0.5px rgba(255, 255, 255, 0.40),
+        0 0 0 1px rgba(255, 255, 255, 0.15),
+        /* Top specular highlight edge */
+        inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.50),
+        /* Lateral Fresnel reflections */
+        inset 0.8px 0 1px 0 rgba(255, 255, 255, 0.22),
+        inset -0.8px 0 1px 0 rgba(255, 255, 255, 0.22),
+        /* Bottom internal caustic */
+        inset 0 -1px 1.5px 0 rgba(255, 255, 255, 0.20),
+        /* Subtle volumetric depth glow */
+        inset 0 0 12px 0 rgba(255, 255, 255, 0.06);
 
       transition:
         transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -412,7 +483,7 @@
         background 240ms ease;
     }
 
-    /* ── Lens Surface Gloss Overlay ── */
+    /* ── Lens Surface Gloss Overlay — subtle refraction shimmer ── */
     .liquid-glass-capsule::before {
       content: '';
       position: absolute;
@@ -420,28 +491,29 @@
       border-radius: inherit;
       background: linear-gradient(
         115deg,
-        rgba(255, 255, 255, 0.45) 0%,
-        rgba(255, 255, 255, 0.12) 35%,
+        rgba(255, 255, 255, 0.20) 0%,
+        rgba(255, 255, 255, 0.06) 35%,
         transparent 60%
       );
       pointer-events: none;
       z-index: 1;
     }
 
-    /* ── Meniscus Specular Highlight (Curved light reflection on liquid crest) ── */
+    /* ── Meniscus Specular Highlight — crisp 1.5px crest reflection ── */
     .liquid-specular-top {
       position: absolute;
-      top: 1px;
-      left: 10px;
-      right: 10px;
-      height: 52%;
-      border-radius: 9999px 9999px 50% 50% / 9999px 9999px 25% 25%;
-      background: radial-gradient(
-        ellipse at 50% 0%,
-        rgba(255, 255, 255, 0.98) 0%,
-        rgba(255, 255, 255, 0.72) 25%,
-        rgba(255, 255, 255, 0.18) 60%,
-        transparent 85%
+      top: 0px;
+      left: 12px;
+      right: 12px;
+      height: 1.5px;
+      border-radius: 9999px;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.70) 25%,
+        rgba(255, 255, 255, 0.95) 50%,
+        rgba(255, 255, 255, 0.70) 75%,
+        transparent 100%
       );
       pointer-events: none;
       z-index: 2;
@@ -449,19 +521,21 @@
       transition: opacity 240ms ease, transform 240ms ease;
     }
 
-    /* ── Internal Caustic Reflection (Bottom liquid refraction) ── */
+    /* ── Internal Caustic Reflection — crisp 1px bevel refraction ── */
     .liquid-caustic-bottom {
       position: absolute;
-      bottom: 1px;
+      bottom: 0px;
       left: 14px;
       right: 14px;
-      height: 38%;
-      border-radius: 30% 30% 9999px 9999px;
-      background: radial-gradient(
-        ellipse at 50% 100%,
-        rgba(255, 255, 255, 0.65) 0%,
-        rgba(255, 255, 255, 0.25) 45%,
-        transparent 85%
+      height: 1px;
+      border-radius: 9999px;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 30%,
+        rgba(255, 255, 255, 0.45) 50%,
+        rgba(255, 255, 255, 0.3) 70%,
+        transparent 100%
       );
       pointer-events: none;
       z-index: 2;
@@ -492,15 +566,22 @@
 
     .liquid-glass-capsule:hover {
       transform: translateY(-2.5px) scale(1.02);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.22) 0%,
+        rgba(248, 250, 255, 0.14) 50%,
+        rgba(255, 255, 255, 0.20) 100%
+      );
       box-shadow:
-        0 20px 42px -4px rgba(99, 91, 255, 0.22),
-        0 8px 18px -2px rgba(22, 32, 51, 0.12),
-        0 0 0 1px rgba(255, 255, 255, 0.9),
-        inset 0 2px 1.5px 0 rgba(255, 255, 255, 1),
-        inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.7),
-        inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.7),
-        inset 0 -2px 3px 0 rgba(255, 255, 255, 0.7),
-        inset 0 0 20px 0 rgba(255, 255, 255, 0.4);
+        0 16px 38px -5px rgba(99, 91, 255, 0.18),
+        0 6px 16px -3px rgba(22, 32, 51, 0.10),
+        0 0 0 0.5px rgba(255, 255, 255, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.25),
+        inset 0 1.5px 0.5px 0 rgba(255, 255, 255, 0.60),
+        inset 1px 0 1.5px 0 rgba(255, 255, 255, 0.30),
+        inset -1px 0 1.5px 0 rgba(255, 255, 255, 0.30),
+        inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.25),
+        inset 0 0 16px 0 rgba(255, 255, 255, 0.10);
     }
     .liquid-glass-capsule:hover .liquid-light-follower {
       opacity: 1;
@@ -513,10 +594,10 @@
       transform: translateY(0.5px) scale(0.975);
       transition-duration: 80ms;
       box-shadow:
-        0 6px 18px -2px rgba(22, 32, 51, 0.14),
-        0 0 0 1px rgba(255, 255, 255, 0.75),
-        inset 0 1px 1px 0 rgba(255, 255, 255, 0.9),
-        inset 0 -1px 2px 0 rgba(255, 255, 255, 0.45);
+        0 4px 14px -3px rgba(22, 32, 51, 0.12),
+        0 0 0 0.5px rgba(255, 255, 255, 0.40),
+        inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.45),
+        inset 0 -0.5px 1px 0 rgba(255, 255, 255, 0.18);
     }
 
     /* ── Logo Liquid Gem ── */
@@ -560,10 +641,12 @@
     .liquid-glass-capsule .liquid-text-primary {
       color: #0f172a !important;
       font-weight: 800;
+      text-shadow: 0 0 8px rgba(255,255,255,0.7), 0 1px 2px rgba(255,255,255,0.5);
     }
     .liquid-glass-capsule .liquid-text-secondary {
-      color: #475569 !important;
+      color: #334155 !important;
       font-weight: 600;
+      text-shadow: 0 0 6px rgba(255,255,255,0.6), 0 1px 2px rgba(255,255,255,0.4);
     }
 
     /* ── Accessibility: Reduced Motion ── */
@@ -639,9 +722,12 @@
       <!-- Liquid Shelf Meniscus Reflection & Internal Caustics -->
       <span class="dock-shelf-specular" aria-hidden="true"></span>
       <span class="dock-shelf-caustic" aria-hidden="true"></span>
+      <!-- Sliding Liquid Glass Navigation System -->
+      <span class="dock-slide-pill" id="dockSlidePill" aria-hidden="true"></span>
+      <span class="dock-slide-bead" id="dockSlideBead" aria-hidden="true"></span>
 
       <!-- 1 · Dashboard -->
-      <a href="{{ url_for('dashboard') }}" class="dock-item" data-dock-item>
+      <a href="{{ url_for('dashboard') }}" class="dock-item" data-dock-item {% if request.endpoint == 'dashboard' %}data-active="true"{% endif %}>
         <span class="dock-label">Dashboard</span>
         <div class="dock-icon" style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 50%, #2563eb 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -652,7 +738,7 @@
       </a>
 
       <!-- 2 · Library -->
-      <a href="{{ url_for('documents') }}" class="dock-item" data-dock-item>
+      <a href="{{ url_for('documents') }}" class="dock-item" data-dock-item {% if request.endpoint in ['documents','document_detail','compare_document','cheat_sheet','concept_graph'] %}data-active="true"{% endif %}>
         <span class="dock-label">Library</span>
         <div class="dock-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -664,7 +750,7 @@
 
       <!-- 3 · Analytics (staff) -->
       {% if g.user.role == 'staff' %}
-      <a href="{{ url_for('staff_analytics') }}" class="dock-item" data-dock-item>
+      <a href="{{ url_for('staff_analytics') }}" class="dock-item" data-dock-item {% if request.endpoint in ['staff_analytics','staff_report'] %}data-active="true"{% endif %}>
         <span class="dock-label">Analytics</span>
         <div class="dock-icon" style="background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #6366f1 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -677,7 +763,7 @@
 
       <!-- 4 · Admin (admin) -->
       {% if g.user.role == 'admin' %}
-      <a href="{{ url_for('admin') }}" class="dock-item" data-dock-item>
+      <a href="{{ url_for('admin') }}" class="dock-item" data-dock-item {% if request.endpoint == 'admin' %}data-active="true"{% endif %}>
         <span class="dock-label">Admin</span>
         <div class="dock-icon" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #4c1d95 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -692,7 +778,7 @@
       <div class="dock-sep"></div>
 
       <!-- 5 · Add Material -->
-      <a href="{{ url_for('new_document') }}" class="dock-item" data-dock-item>
+      <a href="{{ url_for('new_document') }}" class="dock-item" data-dock-item {% if request.endpoint == 'new_document' %}data-active="true"{% endif %}>
         <span class="dock-label">Add Material</span>
         <div class="dock-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #ea580c 50%, #dc2626 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
@@ -703,7 +789,7 @@
       </a>
 
       <!-- 6 · Profile -->
-      <a href="{{ url_for('profile') }}" class="dock-item" data-dock-item>
+      <a href="{{ url_for('profile') }}" class="dock-item" data-dock-item {% if request.endpoint == 'profile' %}data-active="true"{% endif %}>
         <span class="dock-label">Profile</span>
         <div class="dock-icon" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #be185d 100%);">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -817,12 +903,15 @@
       active = true;
       magnify(e.clientX);
 
-      /* Show tooltip only for the item directly under cursor */
+      /* Show tooltip only for the item directly under cursor and update sliding indicators */
       entries.forEach(function(o){
         var ir = o.el.getBoundingClientRect();
         var inside = e.clientX >= ir.left && e.clientX <= ir.right;
         var lbl = o.el.querySelector('.dock-label');
         if (lbl) lbl.style.opacity = inside ? '1' : '0';
+        if (inside && window.dockSlidePositionOn) {
+          window.dockSlidePositionOn(o.el);
+        }
       });
     }
 
@@ -833,6 +922,9 @@
         var lbl = o.el.querySelector('.dock-label');
         if (lbl) lbl.style.opacity = '0';
       });
+      if (window.dockSlideReset) {
+        window.dockSlideReset();
+      }
     }
 
     /* Only attach magnification on hover-capable, motion-allowed devices */
@@ -855,6 +947,128 @@
 
     /* Initial state */
     resetAll();
+  })();
+
+  /* ═══ Dock Liquid Glass Sliding Navigation Engine ═══ */
+  (function(){
+    var shelf = document.getElementById('dockShelf');
+    var pill  = document.getElementById('dockSlidePill');
+    var bead  = document.getElementById('dockSlideBead');
+    if (!shelf || !pill || !bead) return;
+
+    var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var PAD = 5; /* px framing halo around icon */
+    var BEAD_W = 16;
+
+    /* Find the active dock item (marked by data-active="true" or .dock-dot) */
+    var activeEl = shelf.querySelector('[data-dock-item][data-active="true"]') ||
+                   (shelf.querySelector('.dock-dot') ? shelf.querySelector('.dock-dot').closest('[data-dock-item]') : null);
+
+    /* All interactive items */
+    var dockItems = shelf.querySelectorAll('[data-dock-item]');
+
+    function positionIndicators(el, instant) {
+      if (!el) {
+        pill.classList.remove('active');
+        bead.classList.remove('active');
+        return;
+      }
+
+      var icon = el.querySelector('.dock-icon');
+      var target = icon || el;
+      var shelfRect = shelf.getBoundingClientRect();
+      var targetRect = target.getBoundingClientRect();
+
+      /* True live horizontal center of target icon relative to shelf */
+      var centerX  = targetRect.left - shelfRect.left + (targetRect.width / 2);
+      var beadLeft = centerX - (BEAD_W / 2);
+
+      /* Pill coordinates: wraps around target icon */
+      var pillWidth  = targetRect.width + PAD * 2;
+      var pillHeight = targetRect.height + PAD * 2;
+      var pillLeft   = centerX - (pillWidth / 2);
+      var pillTop    = (targetRect.top - shelfRect.top) - PAD;
+
+      if (instant || prefersReduced) {
+        pill.style.transition = 'none';
+        bead.style.transition = 'none';
+      } else {
+        pill.style.transition = '';
+        bead.style.transition = '';
+      }
+
+      pill.style.left   = Math.round(pillLeft) + 'px';
+      pill.style.top    = Math.round(pillTop) + 'px';
+      pill.style.width  = Math.round(pillWidth) + 'px';
+      pill.style.height = Math.round(pillHeight) + 'px';
+      pill.classList.add('active');
+
+      bead.style.left  = Math.round(beadLeft) + 'px';
+      bead.style.width = BEAD_W + 'px';
+      bead.classList.add('active');
+
+      if (instant && !prefersReduced) {
+        pill.offsetHeight; /* force reflow */
+        bead.offsetHeight;
+        pill.style.transition = '';
+        bead.style.transition = '';
+      }
+    }
+
+    /* Expose for magnification engine real-time tracking */
+    window.dockSlidePositionOn = function(el) {
+      positionIndicators(el, false);
+    };
+    window.dockSlideReset = function() {
+      if (activeEl) {
+        positionIndicators(activeEl, false);
+      } else {
+        pill.classList.remove('active');
+        bead.classList.remove('active');
+      }
+    };
+
+    /* Initial positioning */
+    if (activeEl) {
+      requestAnimationFrame(function(){
+        positionIndicators(activeEl, true);
+      });
+    }
+
+    /* On hover: smoothly slide pill and bead to hovered item */
+    dockItems.forEach(function(item){
+      item.addEventListener('mouseenter', function(){
+        positionIndicators(item, false);
+      });
+    });
+
+    /* On mouse leave: smoothly return to active item */
+    shelf.addEventListener('mouseleave', function(){
+      window.dockSlideReset();
+    });
+
+    /* Auto-align indicators when icon magnification finishes expanding/contracting */
+    shelf.querySelectorAll('.dock-icon').forEach(function(icon){
+      icon.addEventListener('transitionend', function(e){
+        if (e.propertyName === 'width') {
+          var hovered = shelf.querySelector('[data-dock-item]:hover');
+          if (hovered) {
+            positionIndicators(hovered, true);
+          } else if (activeEl) {
+            positionIndicators(activeEl, true);
+          }
+        }
+      });
+    });
+
+    /* Recalculate on window resize */
+    var resizeTimer;
+    window.addEventListener('resize', function(){
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function(){
+        if (activeEl) positionIndicators(activeEl, true);
+      }, 100);
+    });
   })();
 
   /* ═══ Apple Liquid Glass Pointer Light-Tracking ═══ */
