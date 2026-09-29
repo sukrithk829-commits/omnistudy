@@ -189,13 +189,16 @@
       <div class="rounded-2xl bg-amber-50 px-5 py-8 text-center">
         <p class="font-bold text-amber-900">{{ 'Preparing the question bank...' if document.processing_status in ['queued', 'processing'] else 'Question bank is ready for generation' }}</p>
         <p class="mt-2 text-sm text-amber-800">Assessment questions are prepared once for this note and shared with all learners.</p>
-        {% if document.processing_status not in ['queued', 'processing'] %}
         <form method="post" action="{{ url_for('generate_shared_study_pack', document_id=document.id) }}" class="mt-5">
           <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-          <button class="btn-primary">Generate study pack</button>
+          <button class="btn-primary">Generate study pack now ✦</button>
         </form>
-        {% endif %}
       </div>
+      {% if document.processing_status in ['queued', 'processing'] %}
+      <script>
+        setTimeout(() => { window.location.reload(); }, 3000);
+      </script>
+      {% endif %}
       {% endif %}
     </div>
   </section>

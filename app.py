@@ -109,18 +109,41 @@ def now_iso():
 def get_db():
     if "db" not in g:
         if USE_TURSO:
-            g.db = db_driver.connect("omnistudy.db", sync_url=TURSO_URL, auth_token=TURSO_TOKEN)
-            g.db.execute("SELECT 1")  # trigger initial sync
+            g.db = db_driver.connect(DATABASE, sync_url=TURSO_URL, auth_token=TURSO_TOKEN)
+            try:
+                if hasattr(g.db, "sync"):
+                    g.db.sync()
+            except Exception as e:
+                logging.warning(f"Turso initial sync warning: {e}")
         else:
             g.db = sqlite3.connect(DATABASE)
+        try:
             g.db.row_factory = sqlite3.Row
+        except Exception:
+            pass
     return g.db
+
+
+def commit_db(db=None):
+    """Commit transaction and sync to Turso cloud if active."""
+    target_db = db or get_db()
+    target_db.commit()
+    if USE_TURSO and hasattr(target_db, "sync"):
+        try:
+            target_db.sync()
+        except Exception as e:
+            logging.warning(f"Turso commit sync warning: {e}")
 
 
 @app.teardown_appcontext
 def close_db(_error):
     db = g.pop("db", None)
     if db is not None:
+        if USE_TURSO and hasattr(db, "sync"):
+            try:
+                db.sync()
+            except Exception:
+                pass
         db.close()
 
 
@@ -1117,7 +1140,97 @@ def make_quiz(raw_content, max_questions=30):
                     "difficulty": "Medium"
                 })
 
+    # 7. Universal Fallback: Ensure every document has high-yield questions regardless of format (syllabi, outlines, notes, lists)
+    if len(questions) < min(10, max_questions):
+        fallback_qs = _make_universal_fallback_quiz(raw_content, domain, banks, cs_banks, max_needed=max_questions - len(questions))
+        for fq in fallback_qs:
+            if fq["prompt"] not in seen_prompts and len(questions) < max_questions:
+                seen_prompts.add(fq["prompt"])
+                questions.append(fq)
+
     return questions[:max_questions]
+
+
+def _make_universal_fallback_quiz(raw_content, domain, banks, cs_banks, max_needed=15):
+    """Universal fallback quiz generator when strict grammatical structure extraction yields insufficient questions."""
+    questions = []
+    seen_prompts = set()
+    cleaned = clean_study_text(raw_content)
+    lines = [l.strip() for l in cleaned.splitlines() if l.strip()]
+
+    extracted_terms = []
+    # 1. Extract from delimiters (bullets, commas, colons, units, periods)
+    for line in lines:
+        sub_items = re.split(r'[\.\,\;\•\n\t]+|Unit\s+\d+:?|Module\s+\d+:?|Chapter\s+\d+:?|Section\s+\d+:?', line, flags=re.IGNORECASE)
+        for item in sub_items:
+            t = re.sub(r'^[0-9\.\-\:\(\)\s]+', '', item).strip()
+            t = t.strip(' .!?:;-')
+            if 3 <= len(t) <= 45 and len(t.split()) <= 6:
+                t_lower = t.lower()
+                if not any(t_lower.startswith(sc) for sc in STOP_CONCEPTS) and t_lower not in {'page', 'syllabus', 'unit', 'module', 'chapter', 'sem', 'semester'}:
+                    t_title = t.title()
+                    if t_title not in extracted_terms:
+                        extracted_terms.append(t_title)
+
+    fallback_concepts = banks.get('concepts', cs_banks['concepts'])
+    fallback_defs = banks.get('definitions', banks.get('mechanisms', cs_banks['mechanisms']))
+    raw_sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', cleaned) if 12 <= len(s.strip()) <= 200]
+
+    # 2. Extract terms and relations from sentences
+    for s in raw_sentences:
+        words = s.split()
+        if len(words) >= 4:
+            subject = " ".join(words[:2]).strip(' .,:;').title()
+            predicate = " ".join(words[2:]).strip(' .,:;')
+            if 3 <= len(subject) <= 30 and len(predicate) >= 5 and subject not in extracted_terms:
+                extracted_terms.append(subject)
+
+    # Question Type A: Subject / Curriculum identification
+    for idx, term in enumerate(extracted_terms):
+        if len(questions) >= max_needed:
+            break
+        if idx == 0:
+            prompt = "Which of the following topics or core components is explicitly covered in this study material?"
+        elif idx % 3 == 0:
+            prompt = f"In this study material, which core area addresses: \"{term}\"?"
+        elif idx % 3 == 1:
+            prompt = f"Which of the following concepts is studied as a primary topic in this material?"
+        else:
+            prompt = f"Which component or principle is explicitly included in the study notes?"
+
+        if prompt not in seen_prompts:
+            seen_prompts.add(prompt)
+            other_extracted = [x for x in extracted_terms if x != term and x.lower() not in term.lower()]
+            opts = build_smart_options(term, other_extracted, fallback_concepts)
+            questions.append({
+                'prompt': prompt,
+                'options': opts,
+                'answer': term,
+                'explanation': f'"{term}" is a core topic outlined directly in the study material.',
+                'skill': 'Curriculum Identification',
+                'difficulty': 'Easy' if idx % 2 == 0 else 'Medium'
+            })
+
+    # Question Type B: Sentence verification / comprehension
+    for s in raw_sentences:
+        if len(questions) >= max_needed:
+            break
+        s_clean = s[0].upper() + s[1:].rstrip('.') + '.'
+        prompt = f"Based on the study notes, which of the following statements is directly confirmed?"
+        if prompt not in seen_prompts:
+            seen_prompts.add(prompt)
+            other_s = [other[0].upper() + other[1:].rstrip('.') + '.' for other in raw_sentences if other != s]
+            opts = build_smart_options(s_clean, other_s, fallback_defs)
+            questions.append({
+                'prompt': prompt,
+                'options': opts,
+                'answer': s_clean,
+                'explanation': f'Verified directly from the study material: "{s_clean}"',
+                'skill': 'Comprehension & Analysis',
+                'difficulty': 'Hard'
+            })
+
+    return questions
 
 
 
@@ -1290,33 +1403,45 @@ def process_document(document_id):
         if not document:
             return
         db.execute("UPDATE documents SET processing_status = 'processing' WHERE id = ?", (document_id,))
-        db.commit()
-        gemini_pack = gemini_study_pack(document["content"])
-        study_pack = gemini_pack or local_study_pack(document["content"])
-        summary_points = study_pack["summary"]
-        questions = study_pack["questions"]
-        db.execute("DELETE FROM study_summaries WHERE document_id = ?", (document_id,))
-        db.execute("DELETE FROM quiz_questions WHERE document_id = ?", (document_id,))
-        db.executemany(
-            "INSERT INTO study_summaries (document_id, position, sentence) VALUES (?, ?, ?)",
-            [(document_id, position, sentence) for position, sentence in enumerate(summary_points)],
-        )
-        db.executemany(
-            "INSERT INTO quiz_questions (document_id, position, prompt, options_json, answer) VALUES (?, ?, ?, ?, ?)",
-            [(document_id, position, question["prompt"], json.dumps({key: value for key, value in question.items() if key != "prompt"}), question["answer"]) for position, question in enumerate(questions)],
-        )
-        db.execute("UPDATE documents SET processing_status = 'ready' WHERE id = ?", (document_id,))
-        db.commit()
+        commit_db(db)
+        try:
+            gemini_pack = gemini_study_pack(document["content"])
+            study_pack = gemini_pack or local_study_pack(document["content"])
+            summary_points = study_pack.get("summary") or []
+            questions = study_pack.get("questions") or []
+            if not questions:
+                questions = make_quiz(document["content"])
+            db.execute("DELETE FROM study_summaries WHERE document_id = ?", (document_id,))
+            db.execute("DELETE FROM quiz_questions WHERE document_id = ?", (document_id,))
+            if summary_points:
+                db.executemany(
+                    "INSERT INTO study_summaries (document_id, position, sentence) VALUES (?, ?, ?)",
+                    [(document_id, position, sentence) for position, sentence in enumerate(summary_points)],
+                )
+            if questions:
+                db.executemany(
+                    "INSERT INTO quiz_questions (document_id, position, prompt, options_json, answer) VALUES (?, ?, ?, ?, ?)",
+                    [(document_id, position, question["prompt"], json.dumps({key: value for key, value in question.items() if key != "prompt"}), question["answer"]) for position, question in enumerate(questions)],
+                )
+            db.execute("UPDATE documents SET processing_status = 'ready' WHERE id = ?", (document_id,))
+            commit_db(db)
+            logging.info(f"Processed document {document_id}: generated {len(questions)} quiz questions and {len(summary_points)} summary points.")
+        except Exception as error:
+            logging.exception(f"Error processing document {document_id}: {error}")
+            db.execute("UPDATE documents SET processing_status = 'ready' WHERE id = ?", (document_id,))
+            commit_db(db)
 
 
 def queue_document_processing(document_id):
-    db = get_db()
-    db.execute("UPDATE documents SET processing_status = 'queued' WHERE id = ?", (document_id,))
-    db.commit()
-    if scheduler.running:
-        scheduler.add_job(process_document, args=[document_id], id=f"document_{document_id}", replace_existing=True)
-    else:
+    try:
         process_document(document_id)
+    except Exception as error:
+        logging.warning(f"Immediate processing failed: {error}")
+        db = get_db()
+        db.execute("UPDATE documents SET processing_status = 'queued' WHERE id = ?", (document_id,))
+        commit_db(db)
+        if scheduler.running:
+            scheduler.add_job(process_document, args=[document_id], id=f"document_{document_id}", replace_existing=True)
 
 
 def stored_summary(document_id):
@@ -2561,14 +2686,9 @@ def generate_shared_study_pack(document_id):
     document = get_document(document_id)
     if not visible_document(document):
         abort(403)
-    if document["processing_status"] in {"queued", "processing"}:
-        flash("The shared AI study pack is already being prepared.", "success")
-    elif stored_summary(document_id) and len(stored_questions(document_id)) > 0:
-        flash("This note already has a shared AI study pack. Everyone sees the saved version.", "success")
-    else:
-        process_document(document_id)
-        flash("The shared AI summary and assessment questions are ready.", "success")
-    target = request.referrer or url_for("quiz", document_id=document_id)
+    process_document(document_id)
+    flash("The shared AI assessment questions and study pack are ready.", "success")
+    target = url_for("quiz", document_id=document_id)
     return redirect(target)
 
 
@@ -2629,6 +2749,10 @@ def quiz(document_id):
     if not visible_document(document):
         abort(403)
     question_bank = stored_questions(document_id)
+    if not question_bank:
+        process_document(document_id)
+        question_bank = stored_questions(document_id)
+        document = get_document(document_id)
     full_bank_ready = len(question_bank) > 0 and document["processing_status"] not in {"queued", "processing"}
     focus = request.values.get("difficulty", "balanced")
     if focus not in QUIZ_FOCUSES:
