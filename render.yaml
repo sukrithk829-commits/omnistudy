@@ -5,14 +5,12 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
-    disk:
-      name: omnistudy-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
       - key: OMNISTUDY_SECRET_KEY
         sync: false
-      - key: PERSISTENT_DATA_DIR
-        value: /data
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false

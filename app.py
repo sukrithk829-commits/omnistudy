@@ -46,9 +46,21 @@ import xml.etree.ElementTree as ET
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_DIR = os.environ.get("PERSISTENT_DATA_DIR", BASE_DIR)
-DATABASE = os.path.join(DATA_DIR, "omnistudy.db")
 UPLOAD_FOLDER = os.path.join(DATA_DIR, "uploads")
 ALLOWED_EXTENSIONS = {"doc", "docx", "md", "pdf", "txt"}
+
+# Database: use Turso cloud DB when env vars are set (Render), else local sqlite
+TURSO_URL = os.environ.get("TURSO_DATABASE_URL", "")
+TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
+USE_TURSO = bool(TURSO_URL and TURSO_TOKEN)
+DATABASE = os.path.join(DATA_DIR, "omnistudy.db")  # local fallback path
+
+if USE_TURSO:
+    try:
+        import turso as db_driver
+    except ImportError:
+        USE_TURSO = False
+        db_driver = sqlite3
 
 
 def load_local_env():
@@ -97,8 +109,15 @@ def now_iso():
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DATABASE)
-        g.db.row_factory = sqlite3.Row
+        if USE_TURSO:
+            g.db = db_driver.connect("omnistudy.db", remote_url=TURSO_URL, auth_token=TURSO_TOKEN)
+            try:
+                g.db.row_factory = sqlite3.Row
+            except Exception:
+                pass  # turso handles row access natively
+        else:
+            g.db = sqlite3.connect(DATABASE)
+            g.db.row_factory = sqlite3.Row
     return g.db
 
 
@@ -124,11 +143,23 @@ def ensure_column(db, table, column_definition):
         db.execute(f"ALTER TABLE {table} ADD COLUMN {column_definition}")
 
 
+def _safe_executescript(db, script):
+    """Execute a multi-statement SQL script. Falls back to per-statement execution for drivers that lack executescript."""
+    try:
+        db.executescript(script)
+    except AttributeError:
+        for statement in script.split(";"):
+            statement = statement.strip()
+            if statement:
+                db.execute(statement)
+        db.commit()
+
+
 def init_db():
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     db = get_db()
-    db.executescript(
+    _safe_executescript(db,
         """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
