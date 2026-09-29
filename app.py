@@ -57,10 +57,9 @@ DATABASE = os.path.join(DATA_DIR, "omnistudy.db")  # local fallback path
 
 if USE_TURSO:
     try:
-        import turso as db_driver
+        import libsql_experimental as db_driver
     except ImportError:
         USE_TURSO = False
-        db_driver = sqlite3
 
 
 def load_local_env():
@@ -110,11 +109,8 @@ def now_iso():
 def get_db():
     if "db" not in g:
         if USE_TURSO:
-            g.db = db_driver.connect("omnistudy.db", remote_url=TURSO_URL, auth_token=TURSO_TOKEN)
-            try:
-                g.db.row_factory = sqlite3.Row
-            except Exception:
-                pass  # turso handles row access natively
+            g.db = db_driver.connect("omnistudy.db", sync_url=TURSO_URL, auth_token=TURSO_TOKEN)
+            g.db.execute("SELECT 1")  # trigger initial sync
         else:
             g.db = sqlite3.connect(DATABASE)
             g.db.row_factory = sqlite3.Row
