@@ -6,3 +6,4 @@ omnistudy-server.log
 omnistudy-server.error.log
 .env
 *.docx
+*.zip
