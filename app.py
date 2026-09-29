@@ -50,16 +50,20 @@ UPLOAD_FOLDER = os.path.join(DATA_DIR, "uploads")
 ALLOWED_EXTENSIONS = {"doc", "docx", "md", "pdf", "txt"}
 
 # Database: use Turso cloud DB when env vars are set (Render), else local sqlite
-TURSO_URL = os.environ.get("TURSO_DATABASE_URL", "")
-TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
+TURSO_URL = os.environ.get("TURSO_DATABASE_URL", "").strip()
+TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
 USE_TURSO = bool(TURSO_URL and TURSO_TOKEN)
 DATABASE = os.path.join(DATA_DIR, "omnistudy.db")  # local fallback path
 
 if USE_TURSO:
     try:
-        import libsql_experimental as db_driver
+        import libsql as db_driver
     except ImportError:
-        USE_TURSO = False
+        try:
+            import libsql_experimental as db_driver
+        except ImportError:
+            USE_TURSO = False
+            db_driver = sqlite3
 
 
 def load_local_env():
@@ -106,21 +110,169 @@ def now_iso():
     return datetime.now(UTC).isoformat()
 
 
+class RowWrapper:
+    """Universal row wrapper providing dictionary and index access regardless of underlying driver."""
+    def __init__(self, data, description=None):
+        if isinstance(data, (dict, sqlite3.Row)):
+            self._data = data
+            self._is_dict = isinstance(data, dict)
+        elif isinstance(data, (tuple, list)) and description:
+            cols = [d[0] for d in description]
+            self._data = dict(zip(cols, data))
+            self._is_dict = True
+        else:
+            self._data = data
+            self._is_dict = False
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def get(self, key, default=None):
+        if hasattr(self._data, "get"):
+            return self._data.get(key, default)
+        try:
+            return self._data[key]
+        except (KeyError, IndexError, TypeError):
+            return default
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def keys(self):
+        return self._data.keys() if hasattr(self._data, "keys") else []
+
+    def values(self):
+        return self._data.values() if hasattr(self._data, "values") else []
+
+    def items(self):
+        return self._data.items() if hasattr(self._data, "items") else []
+
+    def __len__(self):
+        return len(self._data)
+
+    def __repr__(self):
+        return f"RowWrapper({repr(self._data)})"
+
+
+class CursorWrapper:
+    """Ensures cursor results are always iterable, support fetchone/fetchall, and return RowWrapper objects."""
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def __iter__(self):
+        desc = getattr(self._cursor, "description", None)
+        if hasattr(self._cursor, "fetchall"):
+            rows = self._cursor.fetchall()
+        else:
+            rows = list(self._cursor)
+        for r in rows:
+            yield RowWrapper(r, desc)
+
+    def fetchone(self):
+        if not hasattr(self._cursor, "fetchone"):
+            return None
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return RowWrapper(row, getattr(self._cursor, "description", None))
+
+    def fetchall(self):
+        desc = getattr(self._cursor, "description", None)
+        if hasattr(self._cursor, "fetchall"):
+            rows = self._cursor.fetchall()
+        else:
+            rows = list(self._cursor)
+        return [RowWrapper(r, desc) for r in rows]
+
+    @property
+    def lastrowid(self):
+        return getattr(self._cursor, "lastrowid", None)
+
+    @property
+    def rowcount(self):
+        return getattr(self._cursor, "rowcount", None)
+
+    @property
+    def description(self):
+        return getattr(self._cursor, "description", None)
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+
+class DatabaseWrapper:
+    """Wraps connection to guarantee consistent cursor, commit, executemany, and sync behavior."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, *args, **kwargs):
+        cursor = self._conn.execute(*args, **kwargs)
+        return CursorWrapper(cursor)
+
+    def executemany(self, *args, **kwargs):
+        if hasattr(self._conn, "executemany"):
+            try:
+                return self._conn.executemany(*args, **kwargs)
+            except Exception:
+                pass
+        sql, param_seq = args[0], args[1]
+        for p in param_seq:
+            self._conn.execute(sql, p)
+
+    def executescript(self, script):
+        if hasattr(self._conn, "executescript"):
+            try:
+                return self._conn.executescript(script)
+            except Exception:
+                pass
+        for statement in script.split(";"):
+            statement = statement.strip()
+            if statement:
+                self._conn.execute(statement)
+
+    def commit(self):
+        if hasattr(self._conn, "commit"):
+            self._conn.commit()
+
+    def sync(self):
+        if hasattr(self._conn, "sync"):
+            try:
+                self._conn.sync()
+            except Exception as e:
+                logging.warning(f"Turso sync error: {e}")
+
+    def close(self):
+        self._conn.close()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
 def get_db():
     if "db" not in g:
+        conn = None
         if USE_TURSO:
-            g.db = db_driver.connect(DATABASE, sync_url=TURSO_URL, auth_token=TURSO_TOKEN)
             try:
-                if hasattr(g.db, "sync"):
-                    g.db.sync()
-            except Exception as e:
-                logging.warning(f"Turso initial sync warning: {e}")
-        else:
-            g.db = sqlite3.connect(DATABASE)
-        try:
-            g.db.row_factory = sqlite3.Row
-        except Exception:
-            pass
+                raw_conn = db_driver.connect(DATABASE, sync_url=TURSO_URL, auth_token=TURSO_TOKEN)
+                try:
+                    if hasattr(raw_conn, "sync"):
+                        raw_conn.sync()
+                except Exception as sync_err:
+                    logging.warning(f"Turso initial sync warning: {sync_err}")
+                conn = DatabaseWrapper(raw_conn)
+            except Exception as conn_err:
+                logging.error(f"Turso cloud DB connection error ({conn_err}). Falling back to local SQLite.")
+                conn = None
+
+        if conn is None:
+            raw_conn = sqlite3.connect(DATABASE)
+            raw_conn.row_factory = sqlite3.Row
+            conn = DatabaseWrapper(raw_conn)
+
+        g.db = conn
     return g.db
 
 
@@ -128,7 +280,7 @@ def commit_db(db=None):
     """Commit transaction and sync to Turso cloud if active."""
     target_db = db or get_db()
     target_db.commit()
-    if USE_TURSO and hasattr(target_db, "sync"):
+    if hasattr(target_db, "sync"):
         try:
             target_db.sync()
         except Exception as e:
@@ -139,7 +291,7 @@ def commit_db(db=None):
 def close_db(_error):
     db = g.pop("db", None)
     if db is not None:
-        if USE_TURSO and hasattr(db, "sync"):
+        if hasattr(db, "sync"):
             try:
                 db.sync()
             except Exception:
@@ -157,7 +309,17 @@ def add_no_cache_headers(response):
 
 def ensure_column(db, table, column_definition):
     column_name = column_definition.split()[0]
-    columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
+    cursor = db.execute(f"PRAGMA table_info({table})")
+    rows = cursor.fetchall() if hasattr(cursor, "fetchall") else list(cursor)
+    columns = set()
+    for row in rows:
+        try:
+            columns.add(row["name"])
+        except Exception:
+            try:
+                columns.add(row[1])
+            except Exception:
+                pass
     if column_name not in columns:
         db.execute(f"ALTER TABLE {table} ADD COLUMN {column_definition}")
 
