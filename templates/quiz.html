@@ -215,19 +215,41 @@
   const progressLabel = form.querySelector('[data-progress-label]');
   const answerStatus = form.querySelector('[data-answer-status]');
   let current = 0;
+  let submitting = false;
 
   const refreshChoices = () => {
     cards.forEach((card) => card.querySelectorAll('[data-option-card]').forEach((option) => {
       const input = option.querySelector('input');
       const selected = input ? input.checked : false;
+      /* Label-level visual state */
       option.classList.toggle('border-indigo-500', selected);
       option.classList.toggle('bg-indigo-50', selected);
       option.classList.toggle('text-indigo-950', selected);
-      const span = option.querySelector('span');
-      if (span) {
-        span.classList.toggle('border-indigo-500', selected);
-        span.classList.toggle('bg-indigo-600', selected);
-        span.classList.toggle('text-white', selected);
+      option.classList.toggle('ring-2', selected);
+      option.classList.toggle('ring-indigo-200', selected);
+      /* Remove conflicting hover classes when selected so they don't flicker */
+      if (selected) {
+        option.classList.remove('hover:border-indigo-300', 'hover:bg-indigo-50');
+        option.classList.add('hover:bg-indigo-100');
+      } else {
+        option.classList.add('hover:border-indigo-300', 'hover:bg-indigo-50');
+        option.classList.remove('hover:bg-indigo-100');
+      }
+      /* Style the letter-circle span (first span) */
+      const spans = option.querySelectorAll('span');
+      const letterCircle = spans[0];
+      if (letterCircle) {
+        letterCircle.classList.toggle('border-indigo-500', selected);
+        letterCircle.classList.toggle('bg-indigo-600', selected);
+        letterCircle.classList.toggle('text-white', selected);
+        letterCircle.classList.toggle('border-slate-300', !selected);
+        letterCircle.classList.toggle('text-slate-500', !selected);
+      }
+      /* Style the option-text span (second span) */
+      const textSpan = spans[1];
+      if (textSpan) {
+        textSpan.classList.toggle('font-semibold', selected);
+        textSpan.classList.toggle('text-indigo-900', selected);
       }
     }));
   };
@@ -243,6 +265,7 @@
     if (answerStatus) answerStatus.textContent = `${answered} of ${cards.length} answered`;
 
     navButtons.forEach((button, buttonIndex) => {
+      if (buttonIndex >= cards.length) return;
       const active = buttonIndex === current;
       const isAnswered = Boolean(cards[buttonIndex] && cards[buttonIndex].querySelector('input:checked'));
       button.className = `grid h-7 w-7 place-items-center rounded-lg text-xs font-bold transition ${
@@ -285,6 +308,7 @@
 
   if (next) {
     next.addEventListener('click', () => {
+      if (submitting) return;
       const currentAnswered = cards[current] && cards[current].querySelector('input:checked');
       if (!currentAnswered) {
         const warning = cards[current].querySelector('[data-answer-warning]');
@@ -299,6 +323,10 @@
           if (warning) warning.classList.remove('hidden');
           return;
         }
+        submitting = true;
+        next.disabled = true;
+        next.textContent = 'Submitting…';
+        next.classList.add('opacity-60', 'cursor-not-allowed');
         form.submit();
       } else {
         show(current + 1);
